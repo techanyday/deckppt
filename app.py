@@ -1,8 +1,12 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import os
 from generate_ppt import generate_ppt
 
 app = Flask(__name__)
+
+# Create a directory for storing presentations
+UPLOAD_FOLDER = 'generated_presentations'
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route('/')
 def home():
@@ -17,8 +21,12 @@ def home():
                 input { width: 100%; padding: 8px; margin-bottom: 10px; }
                 button { background: #4CAF50; color: white; padding: 10px 15px; border: none; cursor: pointer; }
                 button:hover { background: #45a049; }
+                button:disabled { background: #cccccc; cursor: not-allowed; }
                 #result { margin-top: 20px; padding: 10px; }
                 .error { color: #ff0000; }
+                .success { color: #4CAF50; }
+                .download-link { display: inline-block; margin-top: 10px; color: #0066cc; text-decoration: none; }
+                .download-link:hover { text-decoration: underline; }
             </style>
         </head>
         <body>
@@ -64,7 +72,8 @@ def home():
                         return response.json();
                     })
                     .then(data => {
-                        resultDiv.textContent = data.result;
+                        const downloadLink = `<br><a href="/download/${data.filename}" class="download-link">Click here to download your presentation</a>`;
+                        resultDiv.innerHTML = `<span class="success">${data.result}</span>${downloadLink}`;
                         resultDiv.className = '';
                     })
                     .catch(error => {
@@ -102,16 +111,30 @@ def generate():
         except ValueError:
             return jsonify({'error': 'Invalid number of slides'}), 400
 
-        result = generate_ppt(
+        result, filename = generate_ppt(
             prompt,
             'openai',
             'gpt-3.5-turbo',
             slides
         )
-        return jsonify({'result': result})
+        return jsonify({
+            'result': 'Your presentation has been generated successfully!',
+            'filename': filename
+        })
     except Exception as e:
         app.logger.error(f"Error generating presentation: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+@app.route('/download/<filename>')
+def download(filename):
+    try:
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'File not found'}), 404
+        return send_file(file_path, as_attachment=True)
+    except Exception as e:
+        app.logger.error(f"Error downloading file: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Error downloading file'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

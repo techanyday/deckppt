@@ -14,13 +14,13 @@ def generate_ppt(topic, api_name, model_name, num_slides):
     # Clean the topic for file naming
     legal_topic = re.sub(r'[^\w\s-]', '', topic).strip().replace(' ', '_')
     
-    # Create a temporary directory that will be accessible in Render
+    # Create a temporary directory for processing
     temp_dir = tempfile.mkdtemp()
     timestamp = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
     save_dir = os.path.join(temp_dir, f"{legal_topic}_{timestamp}")
     os.makedirs(save_dir, exist_ok=True)
     
-    logging.info(f"Created directory at: {save_dir}")
+    logging.info(f"Created temporary directory at: {save_dir}")
 
     # Copy the theme file to the temp directory
     theme_path = os.path.join(save_dir, "theme0.pptx")
@@ -197,21 +197,15 @@ def generate_ppt(topic, api_name, model_name, num_slides):
         delete_all_slides()
         parse_response(presentation_content)
 
+        # Generate unique filename
+        filename = f"{legal_topic}_{timestamp}.pptx"
+        output_file = os.path.join('generated_presentations', filename)
+        
         # Save the presentation
-        output_file = os.path.join(save_dir, f"{legal_topic}.pptx")
         ppt.save(output_file)
         logging.info(f"Saved presentation to: {output_file}")
         
-        # Create a directory in the Render-accessible location
-        render_dir = "/opt/render/project/src/generated_presentations"
-        os.makedirs(render_dir, exist_ok=True)
-        final_path = os.path.join(render_dir, f"{legal_topic}.pptx")
-        
-        # Copy the file to the Render-accessible location
-        with open(output_file, "rb") as src, open(final_path, "wb") as dst:
-            dst.write(src.read())
-        
-        return f"Done! Your presentation is ready! You can find it at {final_path}"
+        return "Presentation generated successfully!", filename
     except Exception as e:
         logging.error(f"Error generating presentation: {str(e)}")
         raise
