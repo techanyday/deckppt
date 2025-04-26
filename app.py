@@ -58,25 +58,6 @@ def index():
                         <div class="form-text">Recommended: 5-10 slides for optimal content</div>
                     </div>
 
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="api" class="form-label">AI Model Provider</label>
-                            <select class="form-select" id="api" required>
-                                <option value="openai">OpenAI</option>
-                                <option value="huggingface">HuggingFace</option>
-                            </select>
-                        </div>
-
-                        <div class="col-md-6 mb-3">
-                            <label for="model" class="form-label">Model</label>
-                            <select class="form-select" id="model" required>
-                                <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
-                                <option value="gpt-4">GPT-4</option>
-                                <option value="flan-t5-small">Flan-T5-Small</option>
-                            </select>
-                        </div>
-                    </div>
-
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">Generate Presentation</button>
                     </div>
@@ -100,9 +81,7 @@ def index():
                 const data = {
                     topic: document.getElementById('topic').value,
                     theme: document.getElementById('theme').value,
-                    num_slides: parseInt(document.getElementById('slides').value),
-                    api_name: document.getElementById('api').value,
-                    model_name: document.getElementById('model').value
+                    num_slides: parseInt(document.getElementById('slides').value)
                 };
 
                 try {
@@ -130,23 +109,6 @@ def index():
                     submitButton.disabled = false;
                 }
             });
-
-            // Update model options based on selected API
-            document.getElementById('api').addEventListener('change', (e) => {
-                const modelSelect = document.getElementById('model');
-                const options = e.target.value === 'openai' 
-                    ? [
-                        ['gpt-3.5-turbo', 'GPT-3.5 Turbo'],
-                        ['gpt-4', 'GPT-4']
-                      ]
-                    : [
-                        ['flan-t5-small', 'Flan-T5-Small']
-                      ];
-                
-                modelSelect.innerHTML = options
-                    .map(([value, text]) => `<option value="${value}">${text}</option>`)
-                    .join('');
-            });
         </script>
     </body>
     </html>
@@ -162,13 +124,11 @@ def generate():
         topic = data.get('topic')
         theme = data.get('theme', 'professional')
         num_slides = data.get('num_slides', 5)
-        api_name = data.get('api_name', 'openai')
-        model_name = data.get('model_name', 'gpt-3.5-turbo')
 
         if not topic:
             return jsonify({'error': 'Topic is required'}), 400
 
-        filename = generate_ppt(topic, api_name, model_name, num_slides, theme)
+        filename = generate_ppt(topic, num_slides=num_slides, theme=theme)
         return jsonify({'success': True, 'filename': filename})
 
     except Exception as e:

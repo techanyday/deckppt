@@ -67,7 +67,7 @@ def create_section_slide(ppt, title, theme="professional"):
     slide.shapes.title.text = title
     return slide
 
-def generate_ppt(topic, api_name, model_name, num_slides=5, theme="professional"):
+def generate_ppt(topic, num_slides=5, theme="professional"):
     # Clean the topic for file naming
     clean_topic = re.sub(r'[^\w\s-]', '', topic.replace('/', '_'))
     clean_topic = re.sub(r'[-\s]+', '_', clean_topic)
@@ -80,12 +80,12 @@ def generate_ppt(topic, api_name, model_name, num_slides=5, theme="professional"
     ppt = Presentation()
     
     try:
-        # Initialize the API client
+        # Initialize the API client with GPT-3.5 Turbo
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
         
-        client = OpenAIClient(api_key, model_name)
+        client = OpenAIClient(api_key, "gpt-3.5-turbo")
         
         # Generate outline
         outline_prompt = f"Create a {num_slides}-slide presentation outline about {topic}. For each slide, provide a title and key points. Format as JSON with 'slides' array containing 'title' and 'content' for each slide."
