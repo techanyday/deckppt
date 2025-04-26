@@ -4,14 +4,22 @@ import json
 import random
 import string
 from pptx import Presentation
+import logging
 
 from apis.openai_api import OpenAIClient
 from crawlers.icrawlercrawler import ICrawlerCrawler
 
 def generate_ppt(topic, api_name, model_name, num_slides):
+    # Clean the topic for file naming
     legal_topic = re.sub(r'[^\w\s-]', '', topic).strip().replace(' ', '_')
-
-    save_dir = os.path.join("generated_presentations", legal_topic)
+    
+    # Ensure the base directory exists
+    base_dir = "generated_presentations"
+    os.makedirs(base_dir, exist_ok=True)
+    
+    # Create a unique directory for this presentation
+    timestamp = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+    save_dir = os.path.join(base_dir, f"{legal_topic}_{timestamp}")
     os.makedirs(save_dir, exist_ok=True)
 
     ppt = Presentation("theme0.pptx")
@@ -97,16 +105,32 @@ def generate_ppt(topic, api_name, model_name, num_slides):
         slide.placeholders[1].text = content
 
     def create_title_and_content_and_image_slide(title, content, image_query):
-        layout = ppt.slide_layouts[8]
-        slide = ppt.slides.add_slide(layout)
-        slide.shapes.title.text = title
-        slide.placeholders[2].text = content
-        crawler = ICrawlerCrawler(browser="google") 
-        image_name = crawler.get_image(image_query, save_dir)
-        img_path = os.path.join(save_dir, image_name)
-        print(img_path)
-        slide.shapes.add_picture(img_path, slide.placeholders[1].left, slide.placeholders[1].top,
-                                 slide.placeholders[1].width, slide.placeholders[1].height)
+        try:
+            layout = ppt.slide_layouts[8]
+            slide = ppt.slides.add_slide(layout)
+            slide.shapes.title.text = title
+            slide.placeholders[2].text = content
+            
+            # Try to get an image, but fallback gracefully if it fails
+            try:
+                crawler = ICrawlerCrawler(browser="google")
+                image_name = crawler.get_image(image_query, save_dir)
+                if image_name and os.path.isfile(os.path.join(save_dir, image_name)):
+                    img_path = os.path.join(save_dir, image_name)
+                    slide.shapes.add_picture(img_path, slide.placeholders[1].left, slide.placeholders[1].top,
+                                          slide.placeholders[1].width, slide.placeholders[1].height)
+                else:
+                    logging.warning(f"Failed to download image for query: {image_query}")
+            except Exception as e:
+                logging.error(f"Error adding image to slide: {str(e)}")
+                # Continue without the image
+        except Exception as e:
+            logging.error(f"Error creating slide: {str(e)}")
+            # Fallback to a simple content slide
+            layout = ppt.slide_layouts[1]
+            slide = ppt.slides.add_slide(layout)
+            slide.shapes.title.text = title
+            slide.placeholders[1].text = content
 
     def find_text_in_between_tags(text, start_tag, end_tag):
         start_pos = text.find(start_tag)
@@ -130,36 +154,59 @@ def generate_ppt(topic, api_name, model_name, num_slides):
         return found_text
 
     def parse_response(reply):
-        list_of_slides = reply.split("[SLIDEBREAK]")
-        for slide in list_of_slides:
-            slide_type = search_for_slide_type(slide)
-            if slide_type == "[L_TS]":
-                create_title_slide(find_text_in_between_tags(str(slide), "[TITLE]", "[/TITLE]"),
-                                   find_text_in_between_tags(str(slide), "[SUBTITLE]", "[/SUBTITLE]"))
-            elif slide_type == "[L_CS]":
-                create_title_and_content_slide(
-                    "".join(find_text_in_between_tags(str(slide), "[TITLE]", "[/TITLE]")),
-                    "".join(find_text_in_between_tags(str(slide), "[CONTENT]",
-                                                      "[/CONTENT]")))
-            elif slide_type == "[L_IS]":
-                create_title_and_content_and_image_slide("".join(find_text_in_between_tags(str(slide), "[TITLE]",
-                                                                                           "[/TITLE]")),
-                                                         "".join(find_text_in_between_tags(str(slide), "[CONTENT]",
-                                                                                           "[/CONTENT]")),
-                                                         "".join(find_text_in_between_tags(str(slide), "[IMAGE]",
-                                                                                           "[/IMAGE]")))
-            elif slide_type == "[L_THS]":
-                create_section_header_slide("".join(find_text_in_between_tags(str(slide), "[TITLE]", "[/TITLE]")))
+        try:
+            list_of_slides = reply.split("[SLIDEBREAK]")
+            for slide in list_of_slides:
+                if not slide.strip():
+                    continue
+                    
+                slide_type = search_for_slide_type(slide)
+                if not slide_type:
+                    continue
+
+                title = find_text_in_between_tags(str(slide), "[TITLE]", "[/TITLE]")
+                if not title:
+                    continue
+
+                if slide_type == "[L_TS]":
+                    subtitle = find_text_in_between_tags(str(slide), "[SUBTITLE]", "[/SUBTITLE]")
+                    create_title_slide(title, subtitle or "")
+                elif slide_type == "[L_CS]":
+                    content = find_text_in_between_tags(str(slide), "[CONTENT]", "[/CONTENT]")
+                    create_title_and_content_slide(title, content or "")
+                elif slide_type == "[L_IS]":
+                    content = find_text_in_between_tags(str(slide), "[CONTENT]", "[/CONTENT]")
+                    image_query = find_text_in_between_tags(str(slide), "[IMAGE]", "[/IMAGE]") or title
+                    create_title_and_content_and_image_slide(title, content or "", image_query)
+                elif slide_type == "[L_THS]":
+                    create_section_header_slide(title)
+        except Exception as e:
+            logging.error(f"Error parsing presentation content: {str(e)}")
+            raise
 
     def find_title():
         return ppt.slides[0].shapes.title.text
 
-    delete_all_slides()
+    # Initialize logging
+    logging.basicConfig(level=logging.INFO)
 
-    parse_response(presentation_content)
+    try:
+        # Get API key from environment variable
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+            
+        api_client = OpenAIClient(api_key, model_name)
+        presentation_content = api_client.generate(final_prompt)
 
-    title = "".join(str(find_title()).split(":"))
+        delete_all_slides()
+        parse_response(presentation_content)
 
-    ppt.save(os.path.join(save_dir, f"{title}.pptx"))
-
-    return rf"Done! {title} is ready! You can find it at {os.path.realpath(save_dir)}\{title}.pptx"
+        # Save the presentation
+        output_file = os.path.join(save_dir, f"{legal_topic}.pptx")
+        ppt.save(output_file)
+        
+        return f"Done! Your presentation is ready! You can find it at {os.path.realpath(output_file)}"
+    except Exception as e:
+        logging.error(f"Error generating presentation: {str(e)}")
+        raise
