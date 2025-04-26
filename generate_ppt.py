@@ -81,7 +81,11 @@ def generate_ppt(topic, api_name, model_name, num_slides=5, theme="professional"
     
     try:
         # Initialize the API client
-        client = OpenAIClient()
+        api_key = os.environ.get('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+        client = OpenAIClient(api_key, model_name)
         
         # Generate outline
         outline_prompt = f"Create a {num_slides}-slide presentation outline about {topic}. For each slide, provide a title and key points. Format as JSON with 'slides' array containing 'title' and 'content' for each slide."
