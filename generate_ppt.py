@@ -8,7 +8,7 @@ import logging
 import tempfile
 
 from apis.openai_api import OpenAIClient
-from crawlers.pixabay_crawler import PixabayCrawler
+from crawlers.pexels_crawler import PexelsCrawler
 
 def generate_ppt(topic, api_name, model_name, num_slides):
     # Clean the topic for file naming
@@ -59,10 +59,10 @@ def generate_ppt(topic, api_name, model_name, num_slides):
             slide.shapes.title.text = title
             slide.placeholders[2].text = content
             
-            # Try to download and add image using Pixabay
+            # Try to download and add image using Pexels
             image_name = None
             try:
-                crawler = PixabayCrawler()
+                crawler = PexelsCrawler()
                 image_name = crawler.get_image(image_query, save_dir)
             except Exception as e:
                 logging.warning(f"Failed to download image for query '{image_query}': {str(e)}")
