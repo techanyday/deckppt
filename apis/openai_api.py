@@ -1,10 +1,10 @@
-from apis.base_generation_api import BaseGenerationAPIClient
 from openai import OpenAI
 
 
-class OpenAIClient(BaseGenerationAPIClient):
+class OpenAIClient:
     def __init__(self, api_key, model):
-        super().__init__(api_key, model)
+        self.api_key = api_key
+        self.model = model
 
     def generate(self, prompt) -> str:
         client = OpenAI(api_key=self.api_key)
