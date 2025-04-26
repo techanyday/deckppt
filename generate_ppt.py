@@ -59,26 +59,34 @@ def generate_ppt(topic, api_name, model_name, num_slides):
             slide.shapes.title.text = title
             slide.placeholders[2].text = content
             
-            # Try to get an image, but fallback gracefully if it fails
+            # Try to download and add image
+            image_name = None
             try:
-                crawler = ICrawlerCrawler(browser="google")
+                crawler = ICrawlerCrawler("google")
                 image_name = crawler.get_image(image_query, save_dir)
-                if image_name and os.path.isfile(os.path.join(save_dir, image_name)):
-                    img_path = os.path.join(save_dir, image_name)
-                    slide.shapes.add_picture(img_path, slide.placeholders[1].left, slide.placeholders[1].top,
-                                          slide.placeholders[1].width, slide.placeholders[1].height)
-                else:
-                    logging.warning(f"Failed to download image for query: {image_query}")
             except Exception as e:
-                logging.error(f"Error adding image to slide: {str(e)}")
-                # Continue without the image
+                logging.warning(f"Failed to download image for query '{image_query}': {str(e)}")
+            
+            if image_name:
+                try:
+                    image_path = os.path.join(save_dir, image_name)
+                    if os.path.exists(image_path):
+                        slide.shapes.add_picture(image_path, slide.placeholders[1].left,
+                                              slide.placeholders[1].top,
+                                              slide.placeholders[1].width,
+                                              slide.placeholders[1].height)
+                    else:
+                        logging.warning(f"Image file not found: {image_path}")
+                except Exception as e:
+                    logging.error(f"Error adding image to slide: {str(e)}")
+            else:
+                logging.warning(f"No image downloaded for query: {image_query}")
+                
+            return slide
         except Exception as e:
-            logging.error(f"Error creating slide: {str(e)}")
-            # Fallback to a simple content slide
-            layout = ppt.slide_layouts[1]
-            slide = ppt.slides.add_slide(layout)
-            slide.shapes.title.text = title
-            slide.placeholders[1].text = content
+            logging.error(f"Error creating image slide: {str(e)}")
+            # Fallback to content-only slide
+            return create_title_and_content_slide(title, content)
 
     def find_text_in_between_tags(text, start_tag, end_tag):
         start_pos = text.find(start_tag)
