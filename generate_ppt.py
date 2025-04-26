@@ -90,11 +90,27 @@ def get_theme_layout_ids(theme):
 
 def apply_theme_color(shape, color_hex, is_fill=False):
     """Apply theme color to shape"""
-    if is_fill:
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = RGBColor.from_string(color_hex)
-    else:
-        shape.font.color.rgb = RGBColor.from_string(color_hex)
+    try:
+        if is_fill:
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = RGBColor.from_string(color_hex)
+        else:
+            if hasattr(shape, 'font'):
+                shape.font.color.rgb = RGBColor.from_string(color_hex)
+            else:
+                shape.text_frame.paragraphs[0].font.color.rgb = RGBColor.from_string(color_hex)
+    except Exception as e:
+        logging.error(f"Error applying theme color: {e}")
+
+def apply_slide_background(slide, color_hex):
+    """Apply background color to slide"""
+    try:
+        background = slide.background
+        fill = background.fill
+        fill.solid()
+        fill.fore_color.rgb = RGBColor.from_string(color_hex)
+    except Exception as e:
+        logging.error(f"Error applying background color: {e}")
 
 def create_title_slide(ppt, title, theme="professional"):
     layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["title"]]
@@ -157,6 +173,9 @@ def create_content_slide(ppt, title, content, theme="professional"):
     slide = ppt.slides.add_slide(layout)
     theme_colors = get_theme_layout_ids(theme)["colors"]
     
+    # Apply background color
+    apply_slide_background(slide, theme_colors["background"])
+    
     # Find title and content placeholders
     title_placeholder = None
     content_placeholder = None
@@ -197,13 +216,19 @@ def create_content_slide(ppt, title, content, theme="professional"):
     
     # Format content
     tf.text = ""
-    p = tf.paragraphs[0]
-    p.text = content
-    p.font.size = Pt(18)
-    p.font.name = 'Calibri'
-    apply_theme_color(p, theme_colors["accent"])
     tf.word_wrap = True
     tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    
+    # Add bullet points with proper formatting
+    lines = content.strip().split('\n')
+    for line in lines:
+        if line.strip():
+            p = tf.add_paragraph()
+            p.text = line.strip()
+            p.font.size = Pt(18)
+            p.font.name = 'Calibri'
+            p.level = 0
+            apply_theme_color(p, theme_colors["accent"])
     
     return slide
 
@@ -261,19 +286,19 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
         client = OpenAIClient(api_key, "gpt-3.5-turbo")
         
         # Generate outline with unique headings
-        outline_prompt = f"""Create a {num_slides}-slide presentation outline about {topic}. 
-        Each slide should have a UNIQUE heading that reflects its specific content.
-        Format the content to be concise and fit within a standard presentation slide.
-        Each bullet point should be brief and not exceed 2 lines.
+        outline_prompt = f"""Create a presentation outline about {topic} with {num_slides} unique sections.
+        Each section should have a distinct focus and heading (NO slide numbers).
+        Format the content to be concise with 3-4 short bullet points per section.
         
-        For example, if the topic is 'AI Impact on Business':
-        Slide 1: Current State of AI in Business
-        Slide 2: Transforming Business Operations
-        Slide 3: AI-Driven Customer Experience
-        Slide 4: Challenges and Risks
-        Slide 5: Future Business Landscape
+        Example format for 'AI Impact on Business':
+        - Digital Transformation Strategies
+        - Customer Experience Revolution
+        - Operational Efficiency Gains
+        - Risk Management Evolution
+        - Future Business Landscape
         
-        Format as JSON with 'slides' array containing 'heading' and 'content' for each slide."""
+        Format as JSON with 'slides' array containing 'heading' and 'content' for each section.
+        Keep bullet points under 60 characters each to prevent overflow."""
         
         outline_response = client.generate(outline_prompt)
         
@@ -282,20 +307,21 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
         
         # Create content slides based on the outline
         for i in range(num_slides):
-            slide_prompt = f"""For a presentation about {topic}, generate content for slide {i+1}.
-            The content should be brief and well-formatted with:
-            - A unique and specific heading that reflects this slide's content
-            - 3-4 key bullet points
-            - Each bullet point should be 1-2 lines maximum
-            - Total content should fit on a standard presentation slide without overflow
+            slide_prompt = f"""Create content for a presentation section about {topic}.
+            Requirements:
+            - Unique heading (NO slide numbers, NO topic repetition)
+            - 3-4 bullet points
+            - Each bullet point MUST be under 60 characters
+            - Use active voice and concise language
+            - Focus on specific aspects, not general overview
             
-            Do NOT repeat the main topic as the heading. Instead, create a specific subheading."""
+            Example format:
+            Market Transformation Strategies
+            - AI drives 40% efficiency gain in operations
+            - Smart automation reduces costs by 25%
+            - Customer satisfaction increased to 95%"""
             
             slide_content = client.generate(slide_prompt)
-            
-            # Create different types of slides based on content
-            if i == 0:
-                create_section_slide(ppt, "Key Points", theme)
             create_content_slide(ppt, slide_content.split('\n')[0], '\n'.join(slide_content.split('\n')[1:]), theme)
         
         # Save the presentation
