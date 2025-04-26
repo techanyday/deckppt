@@ -64,8 +64,10 @@ def generate_ppt(topic, api_name, model_name, num_slides):
             try:
                 crawler = PexelsCrawler()
                 image_name = crawler.get_image(image_query, save_dir)
+            except ValueError as ve:
+                logging.error(f"Pexels API configuration error: {str(ve)}")
             except Exception as e:
-                logging.warning(f"Failed to download image for query '{image_query}': {str(e)}")
+                logging.error(f"Failed to download image for query '{image_query}': {str(e)}")
             
             if image_name:
                 try:
@@ -76,11 +78,11 @@ def generate_ppt(topic, api_name, model_name, num_slides):
                                               slide.placeholders[1].width,
                                               slide.placeholders[1].height)
                     else:
-                        logging.warning(f"Image file not found: {image_path}")
+                        logging.error(f"Image file not found: {image_path}")
                 except Exception as e:
                     logging.error(f"Error adding image to slide: {str(e)}")
             else:
-                logging.warning(f"No image downloaded for query: {image_query}")
+                logging.error(f"No image downloaded for query: {image_query}")
                 
             return slide
         except Exception as e:
