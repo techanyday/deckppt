@@ -1,6 +1,7 @@
 import os
 import requests
 import logging
+import re
 from urllib.parse import urljoin
 from crawlers.base_crawler import BaseCrawler
 
@@ -15,6 +16,16 @@ class PexelsCrawler(BaseCrawler):
             'Authorization': self.api_key
         }
 
+    def _sanitize_filename(self, filename):
+        """Sanitize filename to be safe for all operating systems"""
+        # Replace any non-alphanumeric characters (except dashes and underscores) with underscore
+        filename = re.sub(r'[^\w\-_]', '_', filename)
+        # Remove multiple consecutive underscores
+        filename = re.sub(r'_+', '_', filename)
+        # Remove leading/trailing underscores
+        filename = filename.strip('_')
+        return filename
+
     def get_image(self, query, save_dir):
         """
         Search and download an image from Pexels
@@ -25,6 +36,9 @@ class PexelsCrawler(BaseCrawler):
             str: Filename of the downloaded image or None if failed
         """
         try:
+            # Make sure save_dir exists
+            os.makedirs(save_dir, exist_ok=True)
+
             # Make API request
             params = {
                 'query': query,
@@ -53,7 +67,8 @@ class PexelsCrawler(BaseCrawler):
             image_response.raise_for_status()
             
             # Create filename with photo ID for uniqueness
-            filename = f"pexels_{query.replace(' ', '_')}_{photo['id']}.jpg"
+            safe_query = self._sanitize_filename(query)
+            filename = f"pexels_{safe_query}_{photo['id']}.jpg"
             filepath = os.path.join(save_dir, filename)
             
             # Save the image
