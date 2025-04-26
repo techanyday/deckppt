@@ -1,7 +1,8 @@
 import os
 import logging
 from pptx import Presentation
-from pptx.util import Pt, MSO_AUTO_SIZE
+from pptx.util import Pt
+from pptx.enum.text import MSO_AUTO_SIZE
 from apis.openai_api import OpenAIClient
 import re
 import tempfile
