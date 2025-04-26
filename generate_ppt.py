@@ -5,6 +5,7 @@ import random
 import string
 from pptx import Presentation
 import logging
+import tempfile
 
 from apis.openai_api import OpenAIClient
 from crawlers.icrawlercrawler import ICrawlerCrawler
@@ -13,73 +14,20 @@ def generate_ppt(topic, api_name, model_name, num_slides):
     # Clean the topic for file naming
     legal_topic = re.sub(r'[^\w\s-]', '', topic).strip().replace(' ', '_')
     
-    # Ensure the base directory exists
-    base_dir = "generated_presentations"
-    os.makedirs(base_dir, exist_ok=True)
-    
-    # Create a unique directory for this presentation
+    # Create a temporary directory that will be accessible in Render
+    temp_dir = tempfile.mkdtemp()
     timestamp = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
-    save_dir = os.path.join(base_dir, f"{legal_topic}_{timestamp}")
+    save_dir = os.path.join(temp_dir, f"{legal_topic}_{timestamp}")
     os.makedirs(save_dir, exist_ok=True)
+    
+    logging.info(f"Created directory at: {save_dir}")
 
-    ppt = Presentation("theme0.pptx")
+    # Copy the theme file to the temp directory
+    theme_path = os.path.join(save_dir, "theme0.pptx")
+    with open("theme0.pptx", "rb") as src, open(theme_path, "wb") as dst:
+        dst.write(src.read())
 
-    final_prompt = f"""Create an outline for a slideshow presentation on the topic of {topic} which is {num_slides}
-        slides long. Make sure there are ONLY {num_slides} slides. This includes the title and thanks slide.
-
-        You are allowed to use the following slide types:
-        Title Slide - (Title, Subtitle)
-        Content Slide - (Title, Content)
-        Image Slide - (Title, Content, Image)
-        Thanks Slide - (Title)
-        
-        Put this tag before the Title Slide: [L_TS]
-        Put this tag before the Content Slide: [L_CS]
-        Put this tag before the Image Slide: [L_IS]
-        Put this tag before the Thanks Slide: [L_THS]
-        
-        Put this tag before the Title: [TITLE]
-        Put this tag after the Title: [/TITLE]
-        Put this tag before the Subtitle: [SUBTITLE]
-        Put this tag after the Subtitle: [/SUBTITLE]
-        Put this tag before the Content: [CONTENT]
-        Put this tag after the Content: [/CONTENT]
-        Put this tag before the Image: [IMAGE]
-        Put this tag after the Image: [/IMAGE]
-
-        Put "[SLIDEBREAK]" after each slide 
-
-        For example:
-        [L_TS]
-        [TITLE]Among Us[/TITLE]
-
-        [SLIDEBREAK]
-
-        [L_CS] 
-        [TITLE]What Is Among Us?[/TITLE]
-        [CONTENT]
-        1. Among Us is a popular online multiplayer game developed and published by InnerSloth.
-        2. The game is set in a space-themed setting where players take on the roles of Crewmates and Impostors.
-        3. The objective of Crewmates is to complete tasks and identify the Impostors among them, while the Impostors' goal is to sabotage the spaceship and eliminate the Crewmates without being caught.
-        [/CONTENT]
-
-        [SLIDEBREAK]
-
-
-        Elaborate on the Content, provide as much information as possible.
-        REMEMBER TO PLACE a [/CONTENT] at the end of the Content.
-        Do not include any special characters (?, !, ., :, ) in the Title.
-        Do not include any additional information in your response and stick to the format."""
-
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-    api_client = OpenAIClient(api_key, model_name)
-
-    presentation_content = api_client.generate(final_prompt)
-
-    ppt = Presentation("theme0.pptx")
+    ppt = Presentation(theme_path)
 
     def delete_all_slides():
         for i in range(len(ppt.slides) - 1, -1, -1):
@@ -190,6 +138,53 @@ def generate_ppt(topic, api_name, model_name, num_slides):
     # Initialize logging
     logging.basicConfig(level=logging.INFO)
 
+    final_prompt = f"""Create an outline for a slideshow presentation on the topic of {topic} which is {num_slides}
+        slides long. Make sure there are ONLY {num_slides} slides. This includes the title and thanks slide.
+
+        You are allowed to use the following slide types:
+        Title Slide - (Title, Subtitle)
+        Content Slide - (Title, Content)
+        Image Slide - (Title, Content, Image)
+        Thanks Slide - (Title)
+        
+        Put this tag before the Title Slide: [L_TS]
+        Put this tag before the Content Slide: [L_CS]
+        Put this tag before the Image Slide: [L_IS]
+        Put this tag before the Thanks Slide: [L_THS]
+        
+        Put this tag before the Title: [TITLE]
+        Put this tag after the Title: [/TITLE]
+        Put this tag before the Subtitle: [SUBTITLE]
+        Put this tag after the Subtitle: [/SUBTITLE]
+        Put this tag before the Content: [CONTENT]
+        Put this tag after the Content: [/CONTENT]
+        Put this tag before the Image: [IMAGE]
+        Put this tag after the Image: [/IMAGE]
+
+        Put "[SLIDEBREAK]" after each slide 
+
+        For example:
+        [L_TS]
+        [TITLE]Among Us[/TITLE]
+
+        [SLIDEBREAK]
+
+        [L_CS] 
+        [TITLE]What Is Among Us?[/TITLE]
+        [CONTENT]
+        1. Among Us is a popular online multiplayer game developed and published by InnerSloth.
+        2. The game is set in a space-themed setting where players take on the roles of Crewmates and Impostors.
+        3. The objective of Crewmates is to complete tasks and identify the Impostors among them, while the Impostors' goal is to sabotage the spaceship and eliminate the Crewmates without being caught.
+        [/CONTENT]
+
+        [SLIDEBREAK]
+
+
+        Elaborate on the Content, provide as much information as possible.
+        REMEMBER TO PLACE a [/CONTENT] at the end of the Content.
+        Do not include any special characters (?, !, ., :, ) in the Title.
+        Do not include any additional information in your response and stick to the format."""
+
     try:
         # Get API key from environment variable
         api_key = os.environ.get('OPENAI_API_KEY')
@@ -205,8 +200,18 @@ def generate_ppt(topic, api_name, model_name, num_slides):
         # Save the presentation
         output_file = os.path.join(save_dir, f"{legal_topic}.pptx")
         ppt.save(output_file)
+        logging.info(f"Saved presentation to: {output_file}")
         
-        return f"Done! Your presentation is ready! You can find it at {os.path.realpath(output_file)}"
+        # Create a directory in the Render-accessible location
+        render_dir = "/opt/render/project/src/generated_presentations"
+        os.makedirs(render_dir, exist_ok=True)
+        final_path = os.path.join(render_dir, f"{legal_topic}.pptx")
+        
+        # Copy the file to the Render-accessible location
+        with open(output_file, "rb") as src, open(final_path, "wb") as dst:
+            dst.write(src.read())
+        
+        return f"Done! Your presentation is ready! You can find it at {final_path}"
     except Exception as e:
         logging.error(f"Error generating presentation: {str(e)}")
         raise
