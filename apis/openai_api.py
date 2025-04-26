@@ -12,12 +12,11 @@ class OpenAIClient(BaseGenerationAPIClient):
         completion = client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "developer", "content": "You are a helpful assistant."},
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
+                {"role": "system", "content": "You are a professional presentation creator assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=2000
         )
 
         return completion.choices[0].message.content

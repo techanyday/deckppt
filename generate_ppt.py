@@ -6,37 +6,16 @@ import string
 from pptx import Presentation
 
 from apis.openai_api import OpenAIClient
-from apis.cohere_api import CohereAPIClient
 from crawlers.icrawlercrawler import ICrawlerCrawler
-from utils import get_config, get_settings
-
-settings = get_settings()
-
-api_clients = {
-    "openai": OpenAIClient,
-    "cohere": CohereAPIClient
-}
-
-image_crawlers = {
-    "icrawler": ICrawlerCrawler
-}
-
-
-def get_generative_api_client(_generative_api_name, api_key, _generative_model_name):
-    if _generative_api_name == "openai":
-        return OpenAIClient(api_key, _generative_model_name)
-    elif _generative_api_name == "cohere":
-        return CohereAPIClient(api_key, _generative_model_name)
-
 
 def generate_ppt(topic, api_name, model_name, num_slides):
-    config = get_config()
     legal_topic = re.sub(r'[^\w\s-]', '', topic).strip().replace(' ', '_')
 
-    save_dir = os.path.join(config["save_location"], legal_topic)
+    save_dir = os.path.join("generated_presentations", legal_topic)
     os.makedirs(save_dir, exist_ok=True)
 
     ppt = Presentation("theme0.pptx")
+
     final_prompt = f"""Create an outline for a slideshow presentation on the topic of {topic} which is {num_slides}
         slides long. Make sure there are ONLY {num_slides} slides. This includes the title and thanks slide.
 
@@ -84,20 +63,11 @@ def generate_ppt(topic, api_name, model_name, num_slides):
         Do not include any special characters (?, !, ., :, ) in the Title.
         Do not include any additional information in your response and stick to the format."""
 
-    # """ Ref for slide types:
-    # 0 -> title and subtitle
-    # 1 -> title and content
-    # 2 -> section header
-    # 3 -> two content
-    # 4 -> Comparison
-    # 5 -> Title only
-    # 6 -> Blank
-    # 7 -> Content with caption
-    # 8 -> Pic with caption
-    # """
-
-    api_key = config.get('api_key')
-    api_client = get_generative_api_client(api_name, api_key, model_name)
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+    api_client = OpenAIClient(api_key, model_name)
 
     presentation_content = api_client.generate(final_prompt)
 
@@ -131,7 +101,7 @@ def generate_ppt(topic, api_name, model_name, num_slides):
         slide = ppt.slides.add_slide(layout)
         slide.shapes.title.text = title
         slide.placeholders[2].text = content
-        crawler = image_crawlers["icrawler"](browser="google") # TODO: Make user be able to choose crawler
+        crawler = ICrawlerCrawler(browser="google") 
         image_name = crawler.get_image(image_query, save_dir)
         img_path = os.path.join(save_dir, image_name)
         print(img_path)
