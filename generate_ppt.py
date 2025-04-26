@@ -2,7 +2,7 @@ import os
 import logging
 from pptx import Presentation
 from pptx.util import Pt
-from pptx.enum.text import MSO_AUTO_SIZE
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
 from apis.openai_api import OpenAIClient
 import re
 import tempfile
@@ -52,18 +52,51 @@ def create_title_slide(ppt, title, theme="professional"):
     layout = ppt.slide_layouts[get_theme_layout_ids(theme)["title"]]
     slide = ppt.slides.add_slide(layout)
     
-    # Set title with appropriate formatting
-    title_shape = slide.shapes.title
-    title_shape.text = title
-    title_shape.text_frame.paragraphs[0].font.size = Pt(44)
-    title_shape.text_frame.paragraphs[0].font.name = 'Calibri'
+    # Find title and subtitle placeholders
+    title_placeholder = None
+    subtitle_placeholder = None
     
-    # Add subtitle if placeholder exists
-    if len(slide.placeholders) > 1:
-        subtitle = slide.placeholders[1]
-        subtitle.text = "Generated with AI"
-        subtitle.text_frame.paragraphs[0].font.size = Pt(24)
-        subtitle.text_frame.paragraphs[0].font.name = 'Calibri'
+    for shape in slide.placeholders:
+        if shape.placeholder_format.type == 1:  # Title
+            title_placeholder = shape
+        elif shape.placeholder_format.type == 2:  # Subtitle
+            subtitle_placeholder = shape
+    
+    # Add title
+    if title_placeholder:
+        title_placeholder.text = title
+        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
+        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
+    else:
+        # If no title placeholder, create a text box for title
+        left = Pt(36)  # 0.5 inch from left
+        top = Pt(180)  # 2.5 inches from top
+        width = Pt(648)  # 9 inches
+        height = Pt(72)  # 1 inch
+        title_box = slide.shapes.add_textbox(left, top, width, height)
+        tf = title_box.text_frame
+        tf.text = title
+        tf.paragraphs[0].font.size = Pt(44)
+        tf.paragraphs[0].font.name = 'Calibri'
+        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
+    
+    # Add subtitle
+    if subtitle_placeholder:
+        subtitle_placeholder.text = "Generated with AI"
+        subtitle_placeholder.text_frame.paragraphs[0].font.size = Pt(24)
+        subtitle_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
+    else:
+        # If no subtitle placeholder, create a text box for subtitle
+        left = Pt(36)  # 0.5 inch from left
+        top = Pt(288)  # 4 inches from top
+        width = Pt(648)  # 9 inches
+        height = Pt(36)  # 0.5 inch
+        subtitle_box = slide.shapes.add_textbox(left, top, width, height)
+        tf = subtitle_box.text_frame
+        tf.text = "Generated with AI"
+        tf.paragraphs[0].font.size = Pt(24)
+        tf.paragraphs[0].font.name = 'Calibri'
+        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
     
     return slide
 
@@ -71,22 +104,48 @@ def create_content_slide(ppt, title, content, theme="professional"):
     layout = ppt.slide_layouts[get_theme_layout_ids(theme)["content"]]
     slide = ppt.slides.add_slide(layout)
     
-    # Set title
-    title_shape = slide.shapes.title
-    title_shape.text = title
+    # Find title and content placeholders
+    title_placeholder = None
+    content_placeholder = None
     
-    # Format content shape
-    content_shape = slide.placeholders[1]
-    tf = content_shape.text_frame
+    for shape in slide.placeholders:
+        if shape.placeholder_format.type == 1:  # Title
+            title_placeholder = shape
+        elif shape.placeholder_format.type == 7:  # Content
+            content_placeholder = shape
+    
+    # Add title if placeholder exists
+    if title_placeholder:
+        title_placeholder.text = title
+    else:
+        # If no title placeholder, create a text box for title
+        left = Pt(36)  # 0.5 inch from left
+        top = Pt(36)   # 0.5 inch from top
+        width = Pt(648)  # 9 inches
+        height = Pt(50)  # About 0.7 inch
+        title_box = slide.shapes.add_textbox(left, top, width, height)
+        title_box.text_frame.text = title
+        title_box.text_frame.paragraphs[0].font.size = Pt(32)
+        title_box.text_frame.paragraphs[0].font.bold = True
+    
+    # Add content if placeholder exists
+    if content_placeholder:
+        tf = content_placeholder.text_frame
+    else:
+        # If no content placeholder, create a text box for content
+        left = Pt(36)  # 0.5 inch from left
+        top = Pt(108)  # 1.5 inches from top
+        width = Pt(648)  # 9 inches
+        height = Pt(432)  # 6 inches
+        content_box = slide.shapes.add_textbox(left, top, width, height)
+        tf = content_box.text_frame
+    
+    # Format content
     tf.text = ""  # Clear any existing text
-    
-    # Add content with proper formatting
     p = tf.paragraphs[0]
     p.text = content
-    p.font.size = Pt(18)  # Adjust font size for better fit
+    p.font.size = Pt(18)
     p.font.name = 'Calibri'
-    
-    # Auto-fit text
     tf.word_wrap = True
     tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
     
@@ -96,11 +155,30 @@ def create_section_slide(ppt, title, theme="professional"):
     layout = ppt.slide_layouts[get_theme_layout_ids(theme)["section"]]
     slide = ppt.slides.add_slide(layout)
     
-    # Set title with larger font
-    title_shape = slide.shapes.title
-    title_shape.text = title
-    title_shape.text_frame.paragraphs[0].font.size = Pt(44)
-    title_shape.text_frame.paragraphs[0].font.name = 'Calibri'
+    # Find title placeholder
+    title_placeholder = None
+    for shape in slide.placeholders:
+        if shape.placeholder_format.type == 1:  # Title
+            title_placeholder = shape
+            break
+    
+    # Add title
+    if title_placeholder:
+        title_placeholder.text = title
+        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
+        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
+    else:
+        # If no title placeholder, create a text box for title
+        left = Pt(36)  # 0.5 inch from left
+        top = Pt(216)  # 3 inches from top (centered vertically)
+        width = Pt(648)  # 9 inches
+        height = Pt(72)  # 1 inch
+        title_box = slide.shapes.add_textbox(left, top, width, height)
+        tf = title_box.text_frame
+        tf.text = title
+        tf.paragraphs[0].font.size = Pt(44)
+        tf.paragraphs[0].font.name = 'Calibri'
+        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
     
     return slide
 
