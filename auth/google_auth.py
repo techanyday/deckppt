@@ -61,7 +61,7 @@ class GoogleAuth:
         
         if is_production:
             # Production URL on Render
-            return "https://decklyst.onrender.com/login/google/authorized"
+            return "https://decksky.onrender.com/login/google/authorized"
         else:
             # Local development URL
             return request.url_root.rstrip('/') + "/login/google/authorized"
