@@ -1,20 +1,19 @@
-import openai
+from openai import OpenAI
 import logging
 import json
-import base64
 import requests
 from io import BytesIO
 from PIL import Image
 
 class OpenAIClient:
     def __init__(self, api_key, model="gpt-3.5-turbo"):
-        self.api_key = api_key
+        self.client = OpenAI(api_key=api_key)
         self.model = model
-        openai.api_key = api_key
 
     def generate(self, prompt):
+        """Generate text using the OpenAI API"""
         try:
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
@@ -28,7 +27,7 @@ class OpenAIClient:
     def generate_image(self, prompt, size="1024x1024"):
         """Generate an image using DALL-E 3"""
         try:
-            response = openai.Image.create(
+            response = self.client.images.generate(
                 model="dall-e-3",
                 prompt=prompt,
                 size=size,
