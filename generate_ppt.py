@@ -2,7 +2,7 @@ import os
 import logging
 from pptx import Presentation
 from pptx.util import Pt
-from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
+from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_CONNECTOR
 from pptx.enum.dml import MSO_LINE
 from pptx.enum.text import PP_ALIGN
