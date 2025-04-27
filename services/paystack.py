@@ -6,6 +6,8 @@ from models.database import db, User, Payment, PlanType
 class PaystackService:
     def __init__(self):
         self.api_key = os.environ.get('PAYSTACK_SECRET_KEY')
+        if not self.api_key:
+            raise ValueError('PAYSTACK_SECRET_KEY environment variable is not set')
         self.base_url = 'https://api.paystack.co'
         self.headers = {
             'Authorization': f'Bearer {self.api_key}',

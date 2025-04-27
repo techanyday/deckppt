@@ -145,21 +145,33 @@ def pricing():
 @app.route('/payment/create', methods=['POST'])
 @login_required
 def create_payment():
-    user = User.query.get(session['user']['id'])
-    payment_type = request.form.get('type')
-    
-    if payment_type == 'subscription':
-        authorization_url, reference = paystack.create_subscription(user.id, user.email)
-    else:  # one_time
-        authorization_url, reference = paystack.initialize_transaction(user.id, user.email, 0.99)
-    
-    if authorization_url:
+    try:
+        user = User.query.get(session['user']['id'])
+        payment_type = request.form.get('type')
+        
+        if payment_type == 'subscription':
+            authorization_url, reference = paystack.create_subscription(user.id, user.email)
+        else:  # one_time
+            authorization_url, reference = paystack.initialize_transaction(user.id, user.email, 0.99)
+        
+        if authorization_url:
+            return jsonify({
+                'success': True,
+                'authorization_url': authorization_url
+            })
+        
         return jsonify({
-            'success': True,
-            'authorization_url': authorization_url
-        })
-    
-    return jsonify({'error': 'Payment initialization failed'}), 500
+            'error': 'Payment initialization failed. Please contact support if this persists.'
+        }), 500
+    except ValueError as e:
+        # This will catch the missing API key error
+        return jsonify({
+            'error': 'Payment system is not properly configured. Please contact support.'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'error': f'An unexpected error occurred: {str(e)}'
+        }), 500
 
 @app.route('/payment/callback')
 def payment_callback():
