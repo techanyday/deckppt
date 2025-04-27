@@ -13,6 +13,7 @@ from apis.openai_api import OpenAIClient
 import re
 import tempfile
 from io import BytesIO
+from datetime import datetime
 
 def get_theme_layout_ids(theme):
     """Get layout IDs and theme colors for different themes"""
@@ -280,82 +281,219 @@ def create_section_slide(ppt, title, theme="professional"):
     
     return slide
 
+def generate_intro_slide(ppt, presentation_title, theme="professional"):
+    """Generate an introduction slide with overview of the topic."""
+    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["title"]]
+    slide = ppt.slides.add_slide(layout)
+    
+    # Apply background color
+    apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
+    
+    # Add title
+    title_placeholder = slide.shapes.title
+    if title_placeholder:
+        overview_title = f"{presentation_title} Overview"
+        title_placeholder.text = overview_title
+        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
+        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
+        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+    
+    # Add overview text
+    content_left = Pt(72)  # 1 inch from left
+    content_top = Pt(216)  # 3 inches from top
+    content_width = Pt(576)  # 8 inches wide
+    content_height = Pt(216)  # 3 inches tall
+    
+    content = slide.shapes.add_textbox(content_left, content_top, content_width, content_height)
+    tf = content.text_frame
+    tf.word_wrap = True
+    
+    # Generate overview text using OpenAI
+    overview_text = generate_slide_overview(presentation_title)
+    p = tf.add_paragraph()
+    p.text = overview_text
+    p.font.size = Pt(28)
+    p.font.name = 'Calibri'
+    p.alignment = PP_ALIGN.CENTER
+    apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
+    
+    return slide
+
+def generate_conclusion_slide(ppt, key_points, theme="professional"):
+    """Generate a conclusion slide with key takeaways."""
+    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
+    slide = ppt.slides.add_slide(layout)
+    
+    # Apply background color
+    apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
+    
+    # Add title
+    title_placeholder = slide.shapes.title
+    if title_placeholder:
+        title_placeholder.text = "Key Takeaways"
+        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
+        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
+        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+    
+    # Add key takeaways
+    content_left = Pt(72)  # 1 inch from left
+    content_top = Pt(144)  # 2 inches from top
+    content_width = Pt(576)  # 8 inches wide
+    content_height = Pt(360)  # 5 inches tall
+    
+    content = slide.shapes.add_textbox(content_left, content_top, content_width, content_height)
+    tf = content.text_frame
+    tf.word_wrap = True
+    
+    # Add takeaway points
+    for point in key_points[:5]:  # Limit to 5 points
+        p = tf.add_paragraph()
+        p.text = point
+        p.font.size = Pt(28)
+        p.font.name = 'Calibri'
+        p.alignment = PP_ALIGN.LEFT
+        p.level = 0  # Top level bullet
+        apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
+        p.space_after = Pt(20)
+        p.space_before = Pt(8)
+    
+    return slide
+
+def generate_slide_overview(title):
+    """Generate a brief overview of the presentation topic."""
+    client = OpenAIClient()
+    prompt = f"""Generate a brief 2-3 sentence overview for a presentation titled '{title}'.
+    The overview should be professional, engaging, and set up the context for the presentation.
+    Do not use phrases like 'In this presentation' or 'We will discuss'.
+    Instead, make direct statements about the topic."""
+    
+    try:
+        response = client.generate_text(prompt)
+        return response.strip()
+    except Exception as e:
+        logging.error(f"Error generating overview: {e}")
+        return f"Discover key insights and strategies about {title.lower()}. This presentation explores proven approaches and practical solutions for success in this domain."
+
+def generate_slide_title(content, base_title):
+    """Generate a unique and relevant title based on slide content."""
+    client = OpenAIClient()
+    prompt = f"""Generate a short, professional slide title (4-6 words) based on this content:
+    Base title: {base_title}
+    Content points: {content}
+    The title should be specific to the content but not too long.
+    Do not use generic words like 'Overview' or 'Introduction'.
+    Do not use punctuation in the title."""
+    
+    try:
+        response = client.generate_text(prompt)
+        return response.strip()
+    except Exception as e:
+        logging.error(f"Error generating slide title: {e}")
+        return base_title
+
+def create_presentation(title, sections):
+    """Create a complete presentation with proper structure."""
+    ppt = Presentation()
+    
+    # 1. Generate intro slide
+    generate_intro_slide(ppt, title)
+    
+    # 2. Generate content slides with unique titles
+    all_points = []  # Collect points for conclusion
+    for section in sections:
+        section_points = section.get("points", [])
+        all_points.extend(section_points)
+        
+        # Generate unique title for this section
+        section_title = generate_slide_title(section_points, title)
+        
+        # Create content slides
+        create_content_slide(ppt, section_title, section_points, 
+                           image_data=section.get("image_data"))
+    
+    # 3. Generate conclusion slide
+    # Extract key takeaways from all points
+    client = OpenAIClient()
+    takeaways_prompt = f"""Based on these presentation points, generate 3-5 key takeaways:
+    {all_points}
+    Each takeaway should be a complete, actionable statement.
+    Focus on the most important insights and practical implications."""
+    
+    try:
+        takeaways = client.generate_text(takeaways_prompt).strip().split("\n")
+    except Exception as e:
+        logging.error(f"Error generating takeaways: {e}")
+        # Create basic takeaways from the first point of each section
+        takeaways = [p[0] for p in [s.get("points", []) for s in sections] if p][:5]
+    
+    generate_conclusion_slide(ppt, takeaways)
+    
+    return ppt
+
 def generate_ppt(topic, num_slides=5, theme="professional"):
     # Clean the topic for file naming
     clean_topic = re.sub(r'[^\w\s-]', '', topic.replace('/', '_'))
-    clean_topic = re.sub(r'[-\s]+', '_', clean_topic)
+    clean_topic = re.sub(r'\s+', '_', clean_topic.strip())
     
-    # Create a unique filename
-    filename = f"{clean_topic}_{os.urandom(3).hex()}.pptx"
-    save_dir = "generated_presentations"
-    os.makedirs(save_dir, exist_ok=True)
-    
-    ppt = Presentation()
+    # Initialize OpenAI client
+    client = OpenAIClient()
     
     try:
-        # Initialize the API client
-        api_key = os.environ.get('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
+        # Generate content for all slides
+        sections = []
+        remaining_slides = num_slides - 2  # Account for intro and conclusion slides
         
-        client = OpenAIClient(api_key, "gpt-3.5-turbo")
+        # Generate main content points
+        content_prompt = f"""Generate {remaining_slides} distinct sections for a presentation about '{topic}'.
+        For each section:
+        1. Focus on a unique aspect or subtopic
+        2. Include 3-4 clear, concise bullet points
+        3. Each bullet point should be a complete, actionable statement
+        4. Avoid repetition between sections
+        5. Ensure natural progression of ideas
         
-        # Create title slide
-        create_title_slide(ppt, topic, theme)
+        Format each section's bullet points as a list."""
         
-        # Create content slides based on the outline
-        for i in range(num_slides):
-            # Generate slide content
-            slide_prompt = f"""Create content for a presentation section about {topic}.
-            Requirements:
-            - Unique heading (NO slide numbers, NO topic repetition)
-            - 3-4 bullet points ONLY
-            - Each bullet point MUST be under 60 characters
-            - Do NOT use any bullet symbols or dashes
-            - Each bullet point should be on a new line
-            - Use active voice and concise language
-            - Focus on specific aspects, not general overview
+        content_response = client.generate_text(content_prompt)
+        content_sections = content_response.strip().split("\n\n")
+        
+        # Process each section
+        for section_text in content_sections[:remaining_slides]:
+            # Extract bullet points
+            points = [p.strip().strip('*-').strip() for p in section_text.split("\n") 
+                     if p.strip() and not p.strip().isdigit()]
             
-            Example format:
-            Market Transformation Strategies
-            Automation reduces operational costs significantly
-            Customer satisfaction reaches record levels
-            Digital solutions drive efficiency improvements"""
-            
-            slide_content = client.generate(slide_prompt)
-            
-            # Split content into title and bullet points
-            content_lines = [line.strip() for line in slide_content.split('\n') if line.strip()]
-            if not content_lines:
-                continue
-                
-            title = content_lines[0]
-            bullet_points = content_lines[1:]  # Get bullet points without any symbols
-            
-            # Generate image for the slide
-            image_prompt = f"""Create a professional presentation image for the topic: {title}
-            Requirements:
-            - Modern and minimalist style
-            - Professional business context
-            - No text or words in the image
-            - Suitable for corporate presentations
-            - Clean and simple design
-            - High contrast and visibility"""
+            # Generate image prompt for this section
+            image_prompt = f"""Based on these points about {topic}:
+            {points}
+            Generate a creative prompt for an image that would complement this content.
+            The image should be professional and business-appropriate.
+            Focus on abstract concepts, data visualization, or business scenarios."""
             
             try:
-                image_data = client.generate_image(image_prompt)
-                create_content_slide(ppt, title, bullet_points, theme, image_data)
+                image_prompt_response = client.generate_text(image_prompt)
+                image_data = client.generate_image(image_prompt_response)
             except Exception as e:
                 logging.error(f"Error generating image: {e}")
-                create_content_slide(ppt, title, bullet_points, theme)
+                image_data = None
+            
+            sections.append({
+                "points": points,
+                "image_data": image_data
+            })
+        
+        # Create the complete presentation
+        ppt = create_presentation(topic, sections)
         
         # Save the presentation
-        output_path = os.path.join(save_dir, filename)
-        ppt.save(output_path)
-        logging.info(f"Presentation saved as {filename}")
+        timestamp = datetime.now().strftime("%H%M%S")
+        filename = f"{clean_topic}_{timestamp[:6]}.pptx"
+        ppt.save(filename)
         
         return filename
         
     except Exception as e:
-        logging.error(f"Error generating presentation: {str(e)}")
+        logging.error(f"Error generating presentation: {e}")
         raise
