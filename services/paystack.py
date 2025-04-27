@@ -15,42 +15,61 @@ class PaystackService:
         }
 
     def initialize_transaction(self, user_id, email, amount_usd, payment_type='one_time'):
-        # Convert USD to NGN (Paystack uses kobo - 100 kobo = 1 NGN)
-        amount_ngn = amount_usd * 750  # Approximate USD to NGN conversion
-        amount_kobo = int(amount_ngn * 100)
+        try:
+            # Check if APP_URL is set
+            app_url = os.environ.get("APP_URL")
+            if not app_url:
+                raise ValueError("APP_URL environment variable is not set")
 
-        data = {
-            'email': email,
-            'amount': amount_kobo,
-            'currency': 'NGN',
-            'callback_url': f'{os.environ.get("APP_URL")}/payment/callback',
-            'metadata': {
-                'user_id': user_id,
-                'payment_type': payment_type
+            # Convert USD to NGN (Paystack uses kobo - 100 kobo = 1 NGN)
+            amount_ngn = amount_usd * 750  # Approximate USD to NGN conversion
+            amount_kobo = int(amount_ngn * 100)
+
+            data = {
+                'email': email,
+                'amount': amount_kobo,
+                'currency': 'NGN',
+                'callback_url': f'{app_url}/payment/callback',
+                'metadata': {
+                    'user_id': user_id,
+                    'payment_type': payment_type
+                }
             }
-        }
 
-        response = requests.post(
-            f'{self.base_url}/transaction/initialize',
-            headers=self.headers,
-            json=data
-        )
-
-        if response.status_code == 200:
-            result = response.json()
-            # Create payment record
-            payment = Payment(
-                user_id=user_id,
-                amount=amount_usd,
-                payment_type=payment_type,
-                paystack_reference=result['data']['reference']
+            print(f"[Paystack] Using API Key: {self.api_key[:8]}...")  # Show first 8 chars
+            print(f"[Paystack] Using callback URL: {data['callback_url']}")
+            print(f"[Paystack] Initializing transaction with data: {data}")
+            
+            response = requests.post(
+                f'{self.base_url}/transaction/initialize',
+                headers=self.headers,
+                json=data
             )
-            db.session.add(payment)
-            db.session.commit()
 
-            return result['data']['authorization_url'], result['data']['reference']
-        
-        return None, None
+            print(f"[Paystack] Response status: {response.status_code}")
+            print(f"[Paystack] Response body: {response.text}")
+
+            if response.status_code == 200:
+                result = response.json()
+                # Create payment record
+                payment = Payment(
+                    user_id=user_id,
+                    amount=amount_usd,
+                    payment_type=payment_type,
+                    paystack_reference=result['data']['reference']
+                )
+                db.session.add(payment)
+                db.session.commit()
+
+                return result['data']['authorization_url'], result['data']['reference']
+            
+            # If we get here, something went wrong
+            print(f"[Paystack] Error: Non-200 status code")
+            return None, None
+
+        except Exception as e:
+            print(f"[Paystack] Exception: {str(e)}")
+            raise
 
     def verify_transaction(self, reference):
         response = requests.get(
