@@ -17,16 +17,16 @@ def get_theme_layout_ids(theme):
     themes = {
         "professional": {
             "layouts": {
-                "title": 0,  # Title Slide
-                "content": 1,  # Title and Content
-                "section": 2,  # Section Header
-                "two_content": 3,  # Two Content
-                "comparison": 4  # Comparison
+                "title": 0,
+                "content": 1,
+                "section": 2,
+                "two_content": 3,
+                "comparison": 4
             },
             "colors": {
-                "background": "FFFFFF",  # White
-                "title": "000000",  # Black
-                "accent": "0066CC"  # Blue
+                "background": "2B579A",  # Dark blue
+                "title": "FFFFFF",       # White
+                "accent": "E6F0FF"       # Light blue
             }
         },
         "modern": {
@@ -38,9 +38,9 @@ def get_theme_layout_ids(theme):
                 "comparison": 4
             },
             "colors": {
-                "background": "F5F5F5",  # Light Gray
-                "title": "333333",  # Dark Gray
-                "accent": "00BFA5"  # Teal
+                "background": "292929",  # Dark gray
+                "title": "FFFFFF",       # White
+                "accent": "00BFA5"       # Teal
             }
         },
         "minimal": {
@@ -52,9 +52,9 @@ def get_theme_layout_ids(theme):
                 "comparison": 4
             },
             "colors": {
-                "background": "FFFFFF",  # White
-                "title": "212121",  # Very Dark Gray
-                "accent": "757575"  # Medium Gray
+                "background": "F0F0F0",  # Light gray
+                "title": "1A1A1A",       # Almost black
+                "accent": "404040"       # Dark gray
             }
         },
         "creative": {
@@ -66,9 +66,9 @@ def get_theme_layout_ids(theme):
                 "comparison": 4
             },
             "colors": {
-                "background": "FAFAFA",  # Off White
-                "title": "FF5722",  # Deep Orange
-                "accent": "7C4DFF"  # Deep Purple
+                "background": "6200EA",  # Deep purple
+                "title": "FFFFFF",       # White
+                "accent": "B388FF"       # Light purple
             }
         },
         "corporate": {
@@ -80,9 +80,9 @@ def get_theme_layout_ids(theme):
                 "comparison": 4
             },
             "colors": {
-                "background": "FFFFFF",  # White
-                "title": "1A237E",  # Indigo
-                "accent": "0D47A1"  # Dark Blue
+                "background": "01579B",  # Dark blue
+                "title": "FFFFFF",       # White
+                "accent": "81D4FA"       # Light blue
             }
         }
     }
@@ -91,14 +91,16 @@ def get_theme_layout_ids(theme):
 def apply_theme_color(shape, color_hex, is_fill=False):
     """Apply theme color to shape"""
     try:
+        rgb = RGBColor.from_string(color_hex)
         if is_fill:
             shape.fill.solid()
-            shape.fill.fore_color.rgb = RGBColor.from_string(color_hex)
+            shape.fill.fore_color.rgb = rgb
         else:
             if hasattr(shape, 'font'):
-                shape.font.color.rgb = RGBColor.from_string(color_hex)
-            else:
-                shape.text_frame.paragraphs[0].font.color.rgb = RGBColor.from_string(color_hex)
+                shape.font.color.rgb = rgb
+            elif hasattr(shape, 'text_frame'):
+                for paragraph in shape.text_frame.paragraphs:
+                    paragraph.font.color.rgb = rgb
     except Exception as e:
         logging.error(f"Error applying theme color: {e}")
 
@@ -115,6 +117,10 @@ def apply_slide_background(slide, color_hex):
 def create_title_slide(ppt, title, theme="professional"):
     layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["title"]]
     slide = ppt.slides.add_slide(layout)
+    theme_colors = get_theme_layout_ids(theme)["colors"]
+    
+    # Apply background color
+    apply_slide_background(slide, theme_colors["background"])
     
     # Find title and subtitle placeholders
     title_placeholder = None
@@ -131,40 +137,40 @@ def create_title_slide(ppt, title, theme="professional"):
         title_placeholder.text = title
         title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
         title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+        apply_theme_color(title_placeholder, theme_colors["title"])
     else:
         # If no title placeholder, create a text box for title
-        left = Pt(36)  # 0.5 inch from left
-        top = Pt(180)  # 2.5 inches from top
-        width = Pt(648)  # 9 inches
-        height = Pt(72)  # 1 inch
+        left = Pt(36)
+        top = Pt(180)
+        width = Pt(648)
+        height = Pt(72)
         title_box = slide.shapes.add_textbox(left, top, width, height)
         tf = title_box.text_frame
         tf.text = title
         tf.paragraphs[0].font.size = Pt(44)
         tf.paragraphs[0].font.name = 'Calibri'
         tf.paragraphs[0].alignment = PP_ALIGN.CENTER
-        apply_theme_color(tf.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+        apply_theme_color(title_box, theme_colors["title"])
     
     # Add subtitle
     if subtitle_placeholder:
         subtitle_placeholder.text = "Generated with AI"
         subtitle_placeholder.text_frame.paragraphs[0].font.size = Pt(24)
         subtitle_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        apply_theme_color(subtitle_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["accent"])
+        apply_theme_color(subtitle_placeholder, theme_colors["accent"])
     else:
         # If no subtitle placeholder, create a text box for subtitle
-        left = Pt(36)  # 0.5 inch from left
-        top = Pt(288)  # 4 inches from top
-        width = Pt(648)  # 9 inches
-        height = Pt(36)  # 0.5 inch
+        left = Pt(36)
+        top = Pt(288)
+        width = Pt(648)
+        height = Pt(36)
         subtitle_box = slide.shapes.add_textbox(left, top, width, height)
         tf = subtitle_box.text_frame
         tf.text = "Generated with AI"
         tf.paragraphs[0].font.size = Pt(24)
         tf.paragraphs[0].font.name = 'Calibri'
         tf.paragraphs[0].alignment = PP_ALIGN.CENTER
-        apply_theme_color(tf.paragraphs[0], get_theme_layout_ids(theme)["colors"]["accent"])
+        apply_theme_color(subtitle_box, theme_colors["accent"])
     
     return slide
 
@@ -173,7 +179,7 @@ def create_content_slide(ppt, title, content, theme="professional"):
     slide = ppt.slides.add_slide(layout)
     theme_colors = get_theme_layout_ids(theme)["colors"]
     
-    # Apply background color
+    # Apply background color first
     apply_slide_background(slide, theme_colors["background"])
     
     # Find title and content placeholders
@@ -189,7 +195,7 @@ def create_content_slide(ppt, title, content, theme="professional"):
     # Add title if placeholder exists
     if title_placeholder:
         title_placeholder.text = title
-        apply_theme_color(title_placeholder.text_frame.paragraphs[0], theme_colors["title"])
+        apply_theme_color(title_placeholder, theme_colors["title"])
     else:
         # If no title placeholder, create a text box for title
         left = Pt(36)
@@ -200,7 +206,7 @@ def create_content_slide(ppt, title, content, theme="professional"):
         title_box.text_frame.text = title
         title_box.text_frame.paragraphs[0].font.size = Pt(32)
         title_box.text_frame.paragraphs[0].font.bold = True
-        apply_theme_color(title_box.text_frame.paragraphs[0], theme_colors["title"])
+        apply_theme_color(title_box, theme_colors["title"])
     
     # Add content if placeholder exists
     if content_placeholder:
@@ -229,6 +235,7 @@ def create_content_slide(ppt, title, content, theme="professional"):
             p.font.name = 'Calibri'
             p.level = 0
             apply_theme_color(p, theme_colors["accent"])
+            p.bullet.enabled = True
     
     return slide
 
