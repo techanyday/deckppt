@@ -134,6 +134,8 @@ def create_title_slide(ppt, title, theme="professional"):
     title_frame.paragraphs[0].font.size = Pt(44)
     title_frame.paragraphs[0].font.bold = True
     title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    title_frame.word_wrap = True
+    title_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
     apply_theme_color(title_frame.paragraphs[0], theme_colors["title"])
     
     # Remove the subtitle placeholder if it exists
@@ -145,79 +147,85 @@ def create_title_slide(ppt, title, theme="professional"):
     return slide
 
 def create_content_slide(ppt, title, bullet_points, theme="professional", image_data=None):
-    # Use Title and Content layout
-    layout = ppt.slide_layouts[1]  # Title and Content layout
+    """Create a content slide with title, bullet points and optional image."""
+    # Get the content slide layout
+    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
     slide = ppt.slides.add_slide(layout)
-    theme_colors = get_theme_layout_ids(theme)["colors"]
     
-    # Apply background color first
-    apply_slide_background(slide, theme_colors["background"])
+    # Apply background color
+    apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
     
-    # Get title and content placeholders
-    title_shape = slide.shapes.title
-    body_shape = slide.shapes.placeholders[1]  # Content placeholder
+    # Add title
+    title_placeholder = slide.shapes.title
+    if title_placeholder:
+        title_placeholder.text = title
+        title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)
+        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
+        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+        title_placeholder.text_frame.word_wrap = True
+        title_placeholder.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+
+    # Add content
+    content_placeholder = None
+    for shape in slide.placeholders:
+        if shape.placeholder_format.type == 1:  # Content placeholder
+            content_placeholder = shape
+            break
     
-    # Set title
-    title_shape.text = title
-    title_frame = title_shape.text_frame
-    title_frame.paragraphs[0].font.size = Pt(32)
-    title_frame.paragraphs[0].font.bold = True
-    title_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-    apply_theme_color(title_frame.paragraphs[0], theme_colors["title"])
-    
-    # Add image if provided
-    if image_data:
-        img_left = Pt(36)
-        img_top = Pt(100)
-        img_width = Pt(648)
-        img_height = Pt(180)
+    if not content_placeholder:
+        # If no content placeholder, create a text box
+        left = Pt(36)  # 0.5 inch from left
+        top = Pt(144)  # 2 inches from top
+        width = Pt(648)  # 9 inches
+        height = Pt(324)  # 4.5 inches
+        content_placeholder = slide.shapes.add_textbox(left, top, width, height)
+
+    # Configure text frame for bullet points
+    tf = content_placeholder.text_frame
+    tf.word_wrap = True
+    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    tf.clear()  # Clear existing content
+
+    # Add bullet points with proper formatting
+    for point in bullet_points:
+        p = tf.add_paragraph()
+        p.text = point
+        p.font.size = Pt(24)
+        p.font.name = 'Calibri'
+        p.alignment = PP_ALIGN.LEFT
+        p.level = 0  # Top level bullet
+        apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
         
+        # Add spacing between bullet points
+        p.space_after = Pt(12)
+        p.space_before = Pt(6)
+
+    # If image data is provided, add it to the slide
+    if image_data:
         try:
-            slide.shapes.add_picture(image_data, img_left, img_top, img_width, img_height)
+            # Create a temporary file for the image
+            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                tmp.write(image_data)
+                tmp.flush()
+                
+                # Calculate image position and size
+                # Make image smaller and position it on the right
+                img_left = Pt(400)  # Move image to the right
+                img_top = Pt(144)
+                img_width = Pt(284)  # Make image narrower
+                img_height = Pt(213)  # Maintain aspect ratio
+                
+                slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
+                
+                # Adjust content width to make room for image
+                if hasattr(content_placeholder, 'width'):
+                    content_placeholder.width = Pt(360)  # Make text area narrower
+                
+            os.unlink(tmp.name)  # Clean up temp file
+            
         except Exception as e:
             logging.error(f"Error adding image to slide: {e}")
-    
-    # Reset and position content placeholder
-    body_shape.left = Pt(36)  # Set left margin
-    body_shape.top = Pt(300) if image_data else Pt(100)
-    body_shape.width = Pt(648)  # Set width to match image
-    
-    # Get the text frame and clear existing content
-    text_frame = body_shape.text_frame
-    text_frame.clear()
-    
-    # Set text frame properties
-    text_frame.word_wrap = True
-    text_frame.vertical_anchor = MSO_ANCHOR.TOP  # Align text to top
-    text_frame.margin_left = 0
-    text_frame.margin_right = 0
-    text_frame.margin_top = 0
-    text_frame.margin_bottom = 0
-    
-    # Add bullet points as separate paragraphs
-    for i, point in enumerate(bullet_points):
-        # For first bullet point, use existing paragraph
-        if i == 0:
-            p = text_frame.paragraphs[0]
-        else:
-            p = text_frame.add_paragraph()
-        
-        # Set bullet point text and properties
-        p.text = point.strip()
-        p.level = 0  # Set as main bullet point
-        
-        # Format paragraph
-        font = p.font
-        font.size = Pt(24)
-        font.name = 'Calibri'
-        
-        # Set paragraph properties
-        p.alignment = PP_ALIGN.LEFT
-        p.space_before = 0
-        p.space_after = Pt(12)
-        
-        # Apply theme color
-        apply_theme_color(p, theme_colors["accent"])
     
     return slide
 
