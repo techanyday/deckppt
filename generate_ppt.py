@@ -116,62 +116,31 @@ def apply_slide_background(slide, color_hex):
         logging.error(f"Error applying background color: {e}")
 
 def create_title_slide(ppt, title, theme="professional"):
-    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["title"]]
+    """Create the title slide with background color and title text."""
+    # Get the title slide layout (first layout)
+    layout = ppt.slide_layouts[0]
     slide = ppt.slides.add_slide(layout)
     theme_colors = get_theme_layout_ids(theme)["colors"]
     
-    # Apply background color
+    # Apply background color first
     apply_slide_background(slide, theme_colors["background"])
     
-    # Find title and subtitle placeholders
-    title_placeholder = None
-    subtitle_placeholder = None
+    # Get the title placeholder
+    title_placeholder = slide.shapes.title
     
+    # Set title text and properties
+    title_placeholder.text = title
+    title_frame = title_placeholder.text_frame
+    title_frame.paragraphs[0].font.size = Pt(44)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    apply_theme_color(title_frame.paragraphs[0], theme_colors["title"])
+    
+    # Remove the subtitle placeholder if it exists
     for shape in slide.placeholders:
-        if shape.placeholder_format.type == 1:  # Title
-            title_placeholder = shape
-        elif shape.placeholder_format.type == 2:  # Subtitle
-            subtitle_placeholder = shape
-    
-    # Add title
-    if title_placeholder:
-        title_placeholder.text = title
-        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
-        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        apply_theme_color(title_placeholder, theme_colors["title"])
-    else:
-        # If no title placeholder, create a text box for title
-        left = Pt(36)
-        top = Pt(180)
-        width = Pt(648)
-        height = Pt(72)
-        title_box = slide.shapes.add_textbox(left, top, width, height)
-        tf = title_box.text_frame
-        tf.text = title
-        tf.paragraphs[0].font.size = Pt(44)
-        tf.paragraphs[0].font.name = 'Calibri'
-        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
-        apply_theme_color(title_box, theme_colors["title"])
-    
-    # Add subtitle
-    if subtitle_placeholder:
-        subtitle_placeholder.text = "Generated with AI"
-        subtitle_placeholder.text_frame.paragraphs[0].font.size = Pt(24)
-        subtitle_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        apply_theme_color(subtitle_placeholder, theme_colors["accent"])
-    else:
-        # If no subtitle placeholder, create a text box for subtitle
-        left = Pt(36)
-        top = Pt(288)
-        width = Pt(648)
-        height = Pt(36)
-        subtitle_box = slide.shapes.add_textbox(left, top, width, height)
-        tf = subtitle_box.text_frame
-        tf.text = "Generated with AI"
-        tf.paragraphs[0].font.size = Pt(24)
-        tf.paragraphs[0].font.name = 'Calibri'
-        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
-        apply_theme_color(subtitle_box, theme_colors["accent"])
+        if shape.placeholder_format.type == 2:  # Subtitle placeholder
+            sp = shape._element
+            sp.getparent().remove(sp)
     
     return slide
 
