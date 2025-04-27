@@ -227,15 +227,20 @@ def create_content_slide(ppt, title, content, theme="professional"):
     
     # Add bullet points with proper formatting
     lines = content.strip().split('\n')
+    first_paragraph = True
     for line in lines:
         if line.strip():
-            p = tf.add_paragraph()
+            if first_paragraph:
+                p = tf.paragraphs[0]
+                first_paragraph = False
+            else:
+                p = tf.add_paragraph()
+            
             p.text = line.strip()
             p.font.size = Pt(18)
             p.font.name = 'Calibri'
-            p.level = 0
+            p.level = 0  # This creates a bullet point
             apply_theme_color(p, theme_colors["accent"])
-            p.bullet.enabled = True
     
     return slide
 
