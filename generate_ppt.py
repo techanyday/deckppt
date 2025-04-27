@@ -208,9 +208,10 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         except Exception as e:
             logging.error(f"Error adding image to slide: {e}")
     
-    # Position content placeholder below image
-    content_top = Pt(300) if image_data else Pt(100)
-    body_shape.top = content_top
+    # Reset and position content placeholder
+    body_shape.left = Pt(36)  # Set left margin
+    body_shape.top = Pt(300) if image_data else Pt(100)
+    body_shape.width = Pt(648)  # Set width to match image
     
     # Get the text frame and clear existing content
     text_frame = body_shape.text_frame
@@ -218,8 +219,11 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
     
     # Set text frame properties
     text_frame.word_wrap = True
+    text_frame.vertical_anchor = MSO_ANCHOR.TOP  # Align text to top
     text_frame.margin_left = 0
     text_frame.margin_right = 0
+    text_frame.margin_top = 0
+    text_frame.margin_bottom = 0
     
     # Add bullet points as separate paragraphs
     for i, point in enumerate(bullet_points):
@@ -234,12 +238,13 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         p.level = 0  # Set as main bullet point
         
         # Format paragraph
-        p.font.size = Pt(24)
-        p.font.name = 'Calibri'
-        p.alignment = PP_ALIGN.LEFT
+        font = p.font
+        font.size = Pt(24)
+        font.name = 'Calibri'
         
-        # Set spacing
-        p.space_before = Pt(0)
+        # Set paragraph properties
+        p.alignment = PP_ALIGN.LEFT
+        p.space_before = 0
         p.space_after = Pt(12)
         
         # Apply theme color
