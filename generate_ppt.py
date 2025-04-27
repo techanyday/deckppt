@@ -8,6 +8,7 @@ from pptx.enum.dml import MSO_LINE
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
 from pptx.enum.dml import MSO_THEME_COLOR
+from pptx.enum.shapes import MSO_SHAPE
 from apis.openai_api import OpenAIClient
 import re
 import tempfile
@@ -174,7 +175,7 @@ def create_title_slide(ppt, title, theme="professional"):
     
     return slide
 
-def create_content_slide(ppt, title, content, theme="professional"):
+def create_content_slide(ppt, title, content, theme="professional", image_data=None):
     layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
     slide = ppt.slides.add_slide(layout)
     theme_colors = get_theme_layout_ids(theme)["colors"]
@@ -208,16 +209,32 @@ def create_content_slide(ppt, title, content, theme="professional"):
         title_box.text_frame.paragraphs[0].font.bold = True
         apply_theme_color(title_box, theme_colors["title"])
     
-    # Add content if placeholder exists
+    # Add image if provided
+    if image_data:
+        # Image dimensions and position
+        img_left = Pt(36)
+        img_top = Pt(100)  # Below title
+        img_width = Pt(648)
+        img_height = Pt(300)  # Fixed height for consistency
+        
+        try:
+            slide.shapes.add_picture(image_data, img_left, img_top, img_width, img_height)
+        except Exception as e:
+            logging.error(f"Error adding image to slide: {e}")
+    
+    # Add content below image
+    content_top = Pt(420) if image_data else Pt(100)  # Adjust based on image presence
+    
     if content_placeholder:
+        # Move the content placeholder below the image
+        content_placeholder.top = content_top
         tf = content_placeholder.text_frame
     else:
-        # If no content placeholder, create a text box for content
+        # Create a new text box for content
         left = Pt(36)
-        top = Pt(108)
         width = Pt(648)
-        height = Pt(432)
-        content_box = slide.shapes.add_textbox(left, top, width, height)
+        height = Pt(200)  # Reduced height to prevent overflow
+        content_box = slide.shapes.add_textbox(left, content_top, width, height)
         tf = content_box.text_frame
     
     # Format content
@@ -297,28 +314,12 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
         
         client = OpenAIClient(api_key, "gpt-3.5-turbo")
         
-        # Generate outline with unique headings
-        outline_prompt = f"""Create a presentation outline about {topic} with {num_slides} unique sections.
-        Each section should have a distinct focus and heading (NO slide numbers).
-        Format the content to be concise with 3-4 short bullet points per section.
-        
-        Example format for 'AI Impact on Business':
-        - Digital Transformation Strategies
-        - Customer Experience Revolution
-        - Operational Efficiency Gains
-        - Risk Management Evolution
-        - Future Business Landscape
-        
-        Format as JSON with 'slides' array containing 'heading' and 'content' for each section.
-        Keep bullet points under 60 characters each to prevent overflow."""
-        
-        outline_response = client.generate(outline_prompt)
-        
         # Create title slide
         create_title_slide(ppt, topic, theme)
         
         # Create content slides based on the outline
         for i in range(num_slides):
+            # Generate slide content
             slide_prompt = f"""Create content for a presentation section about {topic}.
             Requirements:
             - Unique heading (NO slide numbers, NO topic repetition)
@@ -334,7 +335,30 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
             - Customer satisfaction increased to 95%"""
             
             slide_content = client.generate(slide_prompt)
-            create_content_slide(ppt, slide_content.split('\n')[0], '\n'.join(slide_content.split('\n')[1:]), theme)
+            
+            # Generate image for the slide
+            slide_title = slide_content.split('\n')[0]
+            image_prompt = f"""Create a professional presentation image for the topic: {slide_title}
+            Requirements:
+            - Modern and minimalist style
+            - Professional business context
+            - No text or words in the image
+            - Suitable for corporate presentations
+            - Clean and simple design
+            - High contrast and visibility"""
+            
+            try:
+                image_data = client.generate_image(image_prompt)
+                create_content_slide(ppt, slide_content.split('\n')[0], 
+                                  '\n'.join(slide_content.split('\n')[1:]), 
+                                  theme, 
+                                  image_data)
+            except Exception as e:
+                logging.error(f"Error generating image: {e}")
+                # If image generation fails, create slide without image
+                create_content_slide(ppt, slide_content.split('\n')[0], 
+                                  '\n'.join(slide_content.split('\n')[1:]), 
+                                  theme)
         
         # Save the presentation
         output_path = os.path.join(save_dir, filename)
