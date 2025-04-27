@@ -4,55 +4,87 @@
     <title>DeckSky - Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        body { 
-            padding: 20px; 
-            background-color: #f8f9fa; 
-            display: flex;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container { max-width: 400px; }
-        .card { 
-            border-radius: 15px; 
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            padding: 2rem;
-        }
-        .btn-google {
-            background-color: #fff;
-            color: #757575;
-            border: 1px solid #ddd;
-            padding: 0.5rem 1rem;
+        body {
+            background-color: #f8f9fa;
+            height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 10px;
+        }
+        .login-container {
+            max-width: 400px;
+            width: 90%;
+            padding: 2rem;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        .brand {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, #4285f4, #34a853, #fbbc05, #ea4335);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .tagline {
+            color: #666;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+            line-height: 1.5;
+        }
+        .google-btn {
+            display: inline-flex;
+            align-items: center;
+            background: white;
+            color: #757575;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 0;
+            font-size: 14px;
+            font-family: 'Roboto', arial, sans-serif;
+            cursor: pointer;
             transition: all 0.3s ease;
+            text-decoration: none;
+            height: 40px;
         }
-        .btn-google:hover {
-            background-color: #f8f9fa;
-            border-color: #ccc;
+        .google-btn:hover {
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
         }
-        .google-icon {
-            width: 24px;
-            height: 24px;
+        .google-btn:active {
+            background: #eee;
+        }
+        .google-btn img {
+            width: 18px;
+            height: 18px;
+            margin: 0 8px;
+        }
+        .google-btn .google-icon-wrapper {
+            background: white;
+            padding: 11px;
+            border-radius: 2px;
+        }
+        .google-btn .btn-text {
+            padding: 11px 16px 11px 0;
+            font-weight: 500;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <h1 class="text-center mb-4">DeckSky</h1>
-            <h5 class="text-center text-muted mb-4">AI-Powered Presentation Generator</h5>
-            
-            <div class="d-grid gap-2">
-                <a href="{{ url_for('google_login') }}" class="btn btn-google">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/53/Google_%22G%22_Logo.svg" 
-                         alt="Google Logo" 
-                         class="google-icon">
-                    Sign in with Google
-                </a>
-            </div>
-        </div>
+    <div class="login-container">
+        <h1 class="brand">DeckSky</h1>
+        <p class="tagline">
+            Build professional PowerPoint slides and deliver impactful presentations instantly with AI.<br>
+            Log on now to get started!
+        </p>
+        <a href="{{ url_for('google_login') }}" class="google-btn">
+            <span class="google-icon-wrapper">
+                <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGcgZmlsbD0ibm9uZSIgZmlsbC1ydWxlPSJldmVub2RkIj48cGF0aCBkPSJNMTcuNiA5LjJsLS4xLTEuOEg5djMuNGg0LjhDMTMuNiAxMiAxMyAxMyAxMiAxMy42djIuMmgzYTguOCA4LjggMCAwIDAgMi42LTYuNnoiIGZpbGw9IiM0Mjg1RjQiIGZpbGwtcnVsZT0ibm9uemVybyIvPjxwYXRoIGQ9Ik05IDE4YzIuNCAwIDQuNS0uOCA2LTIuMmwtMy0yLjJhNS40IDUuNCAwIDAgMS04LTIuOUgxVjEzYTkgOSAwIDAgMCA4IDV6IiBmaWxsPSIjMzRBODUzIiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNNCAxMC43YTUuNCA1LjQgMCAwIDEgMC0zLjRWNUgxYTkgOSAwIDAgMCAwIDhsMy0yLjN6IiBmaWxsPSIjRkJCQzA1IiBmaWxsLXJ1bGU9Im5vbnplcm8iLz48cGF0aCBkPSJNOSAzLjZjMS4zIDAgMi41LjQgMy40IDEuM0wxNSAyLjNBOSA5IDAgMCAwIDEgNWwzIDIuNGE1LjQgNS40IDAgMCAxIDUtMy43eiIgZmlsbD0iI0VBNDMzNSIgZmlsbC1ydWxlPSJub256ZXJvIi8+PHBhdGggZD0iTTAgMGgxOHYxOEgweiIvPjwvZz48L3N2Zz4=" alt="Google Logo">
+            </span>
+            <span class="btn-text">Sign in with Google</span>
+        </a>
     </div>
 </body>
 </html>
