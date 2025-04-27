@@ -196,6 +196,7 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
     # Add title if placeholder exists
     if title_placeholder:
         title_placeholder.text = title
+        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
         apply_theme_color(title_placeholder, theme_colors["title"])
     else:
         # If no title placeholder, create a text box for title
@@ -207,6 +208,7 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
         title_box.text_frame.text = title
         title_box.text_frame.paragraphs[0].font.size = Pt(32)
         title_box.text_frame.paragraphs[0].font.bold = True
+        title_box.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
         apply_theme_color(title_box, theme_colors["title"])
     
     # Add image if provided
@@ -257,6 +259,9 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
             p.font.size = Pt(18)
             p.font.name = 'Calibri'
             p.level = 0  # This creates a bullet point
+            p.alignment = PP_ALIGN.LEFT  # Align text to the left
+            p.space_before = Pt(12)  # Add space before each bullet point
+            p.space_after = Pt(6)   # Add space after each bullet point
             apply_theme_color(p, theme_colors["accent"])
     
     return slide
