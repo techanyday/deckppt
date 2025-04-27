@@ -310,6 +310,11 @@ def generate_intro_slide(ppt, presentation_title, theme="professional"):
     tf.word_wrap = True
     
     # Generate overview text using OpenAI
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+    client = OpenAIClient(api_key)
     overview_text = generate_slide_overview(presentation_title)
     p = tf.add_paragraph()
     p.text = overview_text
@@ -363,7 +368,11 @@ def generate_conclusion_slide(ppt, key_points, theme="professional"):
 
 def generate_slide_overview(title):
     """Generate a brief overview of the presentation topic."""
-    client = OpenAIClient()
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+    client = OpenAIClient(api_key)
     prompt = f"""Generate a brief 2-3 sentence overview for a presentation titled '{title}'.
     The overview should be professional, engaging, and set up the context for the presentation.
     Do not use phrases like 'In this presentation' or 'We will discuss'.
@@ -378,7 +387,11 @@ def generate_slide_overview(title):
 
 def generate_slide_title(content, base_title):
     """Generate a unique and relevant title based on slide content."""
-    client = OpenAIClient()
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+    client = OpenAIClient(api_key)
     prompt = f"""Generate a short, professional slide title (4-6 words) based on this content:
     Base title: {base_title}
     Content points: {content}
@@ -393,52 +406,17 @@ def generate_slide_title(content, base_title):
         logging.error(f"Error generating slide title: {e}")
         return base_title
 
-def create_presentation(title, sections):
-    """Create a complete presentation with proper structure."""
-    ppt = Presentation()
-    
-    # 1. Generate intro slide
-    generate_intro_slide(ppt, title)
-    
-    # 2. Generate content slides with unique titles
-    all_points = []  # Collect points for conclusion
-    for section in sections:
-        section_points = section.get("points", [])
-        all_points.extend(section_points)
-        
-        # Generate unique title for this section
-        section_title = generate_slide_title(section_points, title)
-        
-        # Create content slides
-        create_content_slide(ppt, section_title, section_points, 
-                           image_data=section.get("image_data"))
-    
-    # 3. Generate conclusion slide
-    # Extract key takeaways from all points
-    client = OpenAIClient()
-    takeaways_prompt = f"""Based on these presentation points, generate 3-5 key takeaways:
-    {all_points}
-    Each takeaway should be a complete, actionable statement.
-    Focus on the most important insights and practical implications."""
-    
-    try:
-        takeaways = client.generate_text(takeaways_prompt).strip().split("\n")
-    except Exception as e:
-        logging.error(f"Error generating takeaways: {e}")
-        # Create basic takeaways from the first point of each section
-        takeaways = [p[0] for p in [s.get("points", []) for s in sections] if p][:5]
-    
-    generate_conclusion_slide(ppt, takeaways)
-    
-    return ppt
-
 def generate_ppt(topic, num_slides=5, theme="professional"):
     # Clean the topic for file naming
     clean_topic = re.sub(r'[^\w\s-]', '', topic.replace('/', '_'))
     clean_topic = re.sub(r'\s+', '_', clean_topic.strip())
     
     # Initialize OpenAI client
-    client = OpenAIClient()
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+    client = OpenAIClient(api_key)
     
     try:
         # Generate content for all slides
@@ -497,3 +475,46 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
     except Exception as e:
         logging.error(f"Error generating presentation: {e}")
         raise
+
+def create_presentation(title, sections):
+    """Create a complete presentation with proper structure."""
+    ppt = Presentation()
+    
+    # 1. Generate intro slide
+    generate_intro_slide(ppt, title)
+    
+    # 2. Generate content slides with unique titles
+    all_points = []  # Collect points for conclusion
+    for section in sections:
+        section_points = section.get("points", [])
+        all_points.extend(section_points)
+        
+        # Generate unique title for this section
+        section_title = generate_slide_title(section_points, title)
+        
+        # Create content slides
+        create_content_slide(ppt, section_title, section_points, 
+                           image_data=section.get("image_data"))
+    
+    # 3. Generate conclusion slide
+    # Extract key takeaways from all points
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+    client = OpenAIClient(api_key)
+    takeaways_prompt = f"""Based on these presentation points, generate 3-5 key takeaways:
+    {all_points}
+    Each takeaway should be a complete, actionable statement.
+    Focus on the most important insights and practical implications."""
+    
+    try:
+        takeaways = client.generate_text(takeaways_prompt).strip().split("\n")
+    except Exception as e:
+        logging.error(f"Error generating takeaways: {e}")
+        # Create basic takeaways from the first point of each section
+        takeaways = [p[0] for p in [s.get("points", []) for s in sections] if p][:5]
+    
+    generate_conclusion_slide(ppt, takeaways)
+    
+    return ppt
