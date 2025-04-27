@@ -2,6 +2,7 @@ import os
 import json
 import requests
 from functools import wraps
+from urllib.parse import quote
 from flask import redirect, request, session, url_for
 
 class GoogleAuth:
@@ -23,9 +24,10 @@ class GoogleAuth:
 
     def get_auth_url(self):
         """Generate Google OAuth2 authorization URL"""
+        redirect_uri = quote(self._get_redirect_uri(), safe='')
         params = {
             'client_id': self.client_id,
-            'redirect_uri': self._get_redirect_uri(),
+            'redirect_uri': redirect_uri,
             'scope': 'email profile',
             'response_type': 'code',
             'access_type': 'offline',
@@ -64,7 +66,7 @@ class GoogleAuth:
             return "https://decksky.onrender.com/login/google/authorized"
         else:
             # Local development URL
-            return request.url_root.rstrip('/') + "/login/google/authorized"
+            return "http://localhost:5000/login/google/authorized"
 
 def login_required(f):
     """Decorator to require login for routes"""
