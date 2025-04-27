@@ -148,86 +148,99 @@ def create_title_slide(ppt, title, theme="professional"):
 
 def create_content_slide(ppt, title, bullet_points, theme="professional", image_data=None):
     """Create a content slide with title, bullet points and optional image."""
-    # Get the content slide layout
-    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
-    slide = ppt.slides.add_slide(layout)
-    
-    # Apply background color
-    apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
-    
-    # Add title
-    title_placeholder = slide.shapes.title
-    if title_placeholder:
-        title_placeholder.text = title
-        title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)
-        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-        title_placeholder.text_frame.word_wrap = True
-        title_placeholder.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+    # Limit bullet points per slide
+    MAX_POINTS_PER_SLIDE = 4
+    slides_needed = (len(bullet_points) + MAX_POINTS_PER_SLIDE - 1) // MAX_POINTS_PER_SLIDE
+    all_slides = []
 
-    # Add content
-    content_placeholder = None
-    for shape in slide.placeholders:
-        if shape.placeholder_format.type == 1:  # Content placeholder
-            content_placeholder = shape
-            break
-    
-    if not content_placeholder:
-        # If no content placeholder, create a text box
-        left = Pt(36)  # 0.5 inch from left
-        top = Pt(144)  # 2 inches from top
-        width = Pt(648)  # 9 inches
-        height = Pt(324)  # 4.5 inches
-        content_placeholder = slide.shapes.add_textbox(left, top, width, height)
+    for slide_num in range(slides_needed):
+        # Get points for this slide
+        start_idx = slide_num * MAX_POINTS_PER_SLIDE
+        end_idx = min(start_idx + MAX_POINTS_PER_SLIDE, len(bullet_points))
+        current_points = bullet_points[start_idx:end_idx]
 
-    # Configure text frame for bullet points
-    tf = content_placeholder.text_frame
-    tf.word_wrap = True
-    tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-    tf.clear()  # Clear existing content
-
-    # Add bullet points with proper formatting
-    for point in bullet_points:
-        p = tf.add_paragraph()
-        p.text = point
-        p.font.size = Pt(24)
-        p.font.name = 'Calibri'
-        p.alignment = PP_ALIGN.LEFT
-        p.level = 0  # Top level bullet
-        apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
+        # Create slide with current set of points
+        layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
+        slide = ppt.slides.add_slide(layout)
+        all_slides.append(slide)
         
-        # Add spacing between bullet points
-        p.space_after = Pt(12)
-        p.space_before = Pt(6)
+        # Apply background color
+        apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
+        
+        # Add title (add part number if multiple slides)
+        title_placeholder = slide.shapes.title
+        if title_placeholder:
+            slide_title = title if slides_needed == 1 else f"{title} ({slide_num + 1}/{slides_needed})"
+            title_placeholder.text = slide_title
+            title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)
+            title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
+            title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+            title_placeholder.text_frame.word_wrap = True
+            title_placeholder.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+            apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
 
-    # If image data is provided, add it to the slide
-    if image_data:
-        try:
-            # Create a temporary file for the image
-            with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-                tmp.write(image_data)
-                tmp.flush()
-                
-                # Calculate image position and size
-                # Make image smaller and position it on the right
-                img_left = Pt(400)  # Move image to the right
-                img_top = Pt(144)
-                img_width = Pt(284)  # Make image narrower
-                img_height = Pt(213)  # Maintain aspect ratio
-                
-                slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
-                
-                # Adjust content width to make room for image
-                if hasattr(content_placeholder, 'width'):
-                    content_placeholder.width = Pt(360)  # Make text area narrower
-                
-            os.unlink(tmp.name)  # Clean up temp file
+        # Add content
+        content_placeholder = None
+        for shape in slide.placeholders:
+            if shape.placeholder_format.type == 1:  # Content placeholder
+                content_placeholder = shape
+                break
+        
+        if not content_placeholder:
+            # If no content placeholder, create a text box
+            left = Pt(36)  # 0.5 inch from left
+            top = Pt(144)  # 2 inches from top
+            width = Pt(648)  # 9 inches
+            height = Pt(324)  # 4.5 inches
+            content_placeholder = slide.shapes.add_textbox(left, top, width, height)
+
+        # Configure text frame for bullet points
+        tf = content_placeholder.text_frame
+        tf.word_wrap = True
+        tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+        tf.clear()  # Clear existing content
+
+        # Add bullet points with proper formatting
+        for point in current_points:
+            p = tf.add_paragraph()
+            p.text = point
+            p.font.size = Pt(24)
+            p.font.name = 'Calibri'
+            p.alignment = PP_ALIGN.LEFT
+            p.level = 0  # Top level bullet
+            apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
             
-        except Exception as e:
-            logging.error(f"Error adding image to slide: {e}")
+            # Add spacing between bullet points
+            p.space_after = Pt(12)
+            p.space_before = Pt(6)
+
+        # Add image only to the first slide if provided
+        if image_data and slide_num == 0:
+            try:
+                # Create a temporary file for the image
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                    tmp.write(image_data)
+                    tmp.flush()
+                    
+                    # Calculate image position and size
+                    # Make image smaller and position it on the right
+                    img_left = Pt(400)  # Move image to the right
+                    img_top = Pt(144)
+                    img_width = Pt(284)  # Make image narrower
+                    img_height = Pt(213)  # Maintain aspect ratio
+                    
+                    slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
+                    
+                    # Adjust content width to make room for image
+                    if hasattr(content_placeholder, 'width'):
+                        content_placeholder.width = Pt(360)  # Make text area narrower
+                    
+                os.unlink(tmp.name)  # Clean up temp file
+                
+            except Exception as e:
+                logging.error(f"Error adding image to slide: {e}")
     
-    return slide
+    return all_slides[0]  # Return the first slide for compatibility
 
 def create_section_slide(ppt, title, theme="professional"):
     layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["section"]]
@@ -291,7 +304,7 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
             slide_prompt = f"""Create content for a presentation section about {topic}.
             Requirements:
             - Unique heading (NO slide numbers, NO topic repetition)
-            - 3-4 bullet points
+            - 3-4 bullet points ONLY
             - Each bullet point MUST be under 60 characters
             - Do NOT use any bullet symbols or dashes
             - Each bullet point should be on a new line
@@ -302,8 +315,7 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
             Market Transformation Strategies
             Automation reduces operational costs significantly
             Customer satisfaction reaches record levels
-            Digital solutions drive efficiency improvements
-            Real-time analytics enable faster decisions"""
+            Digital solutions drive efficiency improvements"""
             
             slide_content = client.generate(slide_prompt)
             
