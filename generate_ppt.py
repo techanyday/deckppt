@@ -175,7 +175,7 @@ def create_title_slide(ppt, title, theme="professional"):
     
     return slide
 
-def create_content_slide(ppt, title, content, theme="professional", image_data=None):
+def create_content_slide(ppt, title, bullet_points, theme="professional", image_data=None):
     # Use Title and Content layout
     layout = ppt.slide_layouts[1]  # Title and Content layout
     slide = ppt.slides.add_slide(layout)
@@ -185,22 +185,23 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
     apply_slide_background(slide, theme_colors["background"])
     
     # Get title and content placeholders
-    title_placeholder = slide.shapes.title
-    body_placeholder = slide.shapes.placeholders[1]  # Content placeholder
+    title_shape = slide.shapes.title
+    body_shape = slide.shapes.placeholders[1]  # Content placeholder
     
     # Set title
-    title_placeholder.text = title
-    title_placeholder.text_frame.paragraphs[0].font.size = Pt(32)
-    title_placeholder.text_frame.paragraphs[0].font.bold = True
-    title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-    apply_theme_color(title_placeholder.text_frame.paragraphs[0], theme_colors["title"])
+    title_shape.text = title
+    title_frame = title_shape.text_frame
+    title_frame.paragraphs[0].font.size = Pt(32)
+    title_frame.paragraphs[0].font.bold = True
+    title_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+    apply_theme_color(title_frame.paragraphs[0], theme_colors["title"])
     
     # Add image if provided
     if image_data:
         img_left = Pt(36)
         img_top = Pt(100)
         img_width = Pt(648)
-        img_height = Pt(180)  # Reduced height further
+        img_height = Pt(180)
         
         try:
             slide.shapes.add_picture(image_data, img_left, img_top, img_width, img_height)
@@ -208,34 +209,40 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
             logging.error(f"Error adding image to slide: {e}")
     
     # Position content placeholder below image
-    content_top = Pt(300) if image_data else Pt(100)  # Moved up
-    body_placeholder.top = content_top
+    content_top = Pt(300) if image_data else Pt(100)
+    body_shape.top = content_top
     
-    # Clear existing text
-    tf = body_placeholder.text_frame
-    tf.clear()
+    # Get the text frame and clear existing content
+    text_frame = body_shape.text_frame
+    text_frame.clear()
     
     # Set text frame properties
-    tf.word_wrap = True
-    tf.margin_left = 0
-    tf.margin_right = 0
+    text_frame.word_wrap = True
+    text_frame.margin_left = 0
+    text_frame.margin_right = 0
     
-    # Add bullet points
-    lines = [line.strip() for line in content.strip().split('\n') if line.strip()]
-    
-    for i, line in enumerate(lines):
-        p = tf.add_paragraph() if i > 0 else tf.paragraphs[0]
-        p.text = line
+    # Add bullet points as separate paragraphs
+    for i, point in enumerate(bullet_points):
+        # For first bullet point, use existing paragraph
+        if i == 0:
+            p = text_frame.paragraphs[0]
+        else:
+            p = text_frame.add_paragraph()
+        
+        # Set bullet point text and properties
+        p.text = point.strip()
+        p.level = 0  # Set as main bullet point
+        
+        # Format paragraph
         p.font.size = Pt(24)
         p.font.name = 'Calibri'
         p.alignment = PP_ALIGN.LEFT
-        p.level = 0
         
-        # Remove extra spacing
-        p.space_before = 0
-        p.space_after = Pt(6)
+        # Set spacing
+        p.space_before = Pt(0)
+        p.space_after = Pt(12)
         
-        # Apply color
+        # Apply theme color
         apply_theme_color(p, theme_colors["accent"])
     
     return slide
@@ -286,7 +293,7 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
     ppt = Presentation()
     
     try:
-        # Initialize the API client with GPT-3.5 Turbo
+        # Initialize the API client
         api_key = os.environ.get('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")
@@ -304,20 +311,30 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
             - Unique heading (NO slide numbers, NO topic repetition)
             - 3-4 bullet points
             - Each bullet point MUST be under 60 characters
+            - Do NOT use any bullet symbols or dashes
+            - Each bullet point should be on a new line
             - Use active voice and concise language
             - Focus on specific aspects, not general overview
             
             Example format:
             Market Transformation Strategies
-            - AI drives 40% efficiency gain in operations
-            - Smart automation reduces costs by 25%
-            - Customer satisfaction increased to 95%"""
+            Automation reduces operational costs significantly
+            Customer satisfaction reaches record levels
+            Digital solutions drive efficiency improvements
+            Real-time analytics enable faster decisions"""
             
             slide_content = client.generate(slide_prompt)
             
+            # Split content into title and bullet points
+            content_lines = [line.strip() for line in slide_content.split('\n') if line.strip()]
+            if not content_lines:
+                continue
+                
+            title = content_lines[0]
+            bullet_points = content_lines[1:]  # Get bullet points without any symbols
+            
             # Generate image for the slide
-            slide_title = slide_content.split('\n')[0]
-            image_prompt = f"""Create a professional presentation image for the topic: {slide_title}
+            image_prompt = f"""Create a professional presentation image for the topic: {title}
             Requirements:
             - Modern and minimalist style
             - Professional business context
@@ -328,16 +345,10 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
             
             try:
                 image_data = client.generate_image(image_prompt)
-                create_content_slide(ppt, slide_content.split('\n')[0], 
-                                  '\n'.join(slide_content.split('\n')[1:]), 
-                                  theme, 
-                                  image_data)
+                create_content_slide(ppt, title, bullet_points, theme, image_data)
             except Exception as e:
                 logging.error(f"Error generating image: {e}")
-                # If image generation fails, create slide without image
-                create_content_slide(ppt, slide_content.split('\n')[0], 
-                                  '\n'.join(slide_content.split('\n')[1:]), 
-                                  theme)
+                create_content_slide(ppt, title, bullet_points, theme)
         
         # Save the presentation
         output_path = os.path.join(save_dir, filename)
