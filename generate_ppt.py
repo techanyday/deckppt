@@ -168,26 +168,30 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         # Apply background color
         apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
         
+        # Calculate consistent width for content
+        content_width = Pt(576)  # 8 inches wide
+        content_left = Pt(72)  # 1 inch from left margin
+        
         # 1. Add title at the top
         title_placeholder = slide.shapes.title
         if title_placeholder:
             # Remove slide numbers from title
             slide_title = title.split(" (")[0] if " (" in title else title
             title_placeholder.text = slide_title
-            title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)  # Slightly smaller
+            title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)
             title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
             title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
             title_placeholder.text_frame.word_wrap = True
             title_placeholder.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
             # Position title
             title_placeholder.top = Pt(24)  # 0.33 inch from top
-            title_placeholder.left = Pt(36)  # 0.5 inch from left
-            title_placeholder.width = Pt(648)  # 9 inches wide
-            title_placeholder.height = Pt(60)  # Slightly shorter
+            title_placeholder.left = content_left
+            title_placeholder.width = content_width
+            title_placeholder.height = Pt(60)
             apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
 
-        # 2. Add image below title (smaller size)
-        image_height = Pt(216)  # 3 inches (reduced from 4)
+        # 2. Add image below title
+        image_height = Pt(216)  # 3 inches
         if image_data and slide_num == 0:
             try:
                 # Create a temporary file for the image
@@ -198,11 +202,11 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
                         tmp.write(image_data)
                     tmp.flush()
                     
-                    # Center the image below the title
-                    img_width = Pt(360)  # 5 inches wide (reduced from 6)
-                    img_height = image_height  # 3 inches tall
-                    img_left = (Pt(720) - img_width) / 2  # Center horizontally
-                    img_top = Pt(96)  # Slightly closer to title
+                    # Use same width as content area
+                    img_width = content_width
+                    img_height = image_height
+                    img_left = content_left  # Align with bullet points
+                    img_top = Pt(96)  # Below title
                     
                     slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
                     
@@ -213,10 +217,7 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
                 image_height = Pt(0)  # If image fails, don't reserve space for it
 
         # 3. Add bullet points below image
-        # Calculate content area dimensions
-        content_left = Pt(72)  # 1 inch from left
-        content_top = Pt(96) + image_height + Pt(24)  # Below image with less gap
-        content_width = Pt(576)  # 8 inches wide
+        content_top = Pt(96) + image_height + Pt(24)  # Below image
         content_height = Pt(396) - image_height  # Remaining space
 
         # Create content text box
@@ -234,15 +235,15 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         for point in current_points:
             p = tf.add_paragraph()
             p.text = point
-            p.font.size = Pt(24)  # Smaller font size (reduced from 28)
+            p.font.size = Pt(24)
             p.font.name = 'Calibri'
             p.alignment = PP_ALIGN.LEFT
             p.level = 0  # Top level bullet
             apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
             
             # Add spacing between bullet points
-            p.space_after = Pt(12)  # Reduced spacing (from 20)
-            p.space_before = Pt(6)  # Reduced spacing (from 8)
+            p.space_after = Pt(12)
+            p.space_before = Pt(6)
     
     return all_slides[0]  # Return the first slide for compatibility
 
