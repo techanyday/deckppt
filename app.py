@@ -101,8 +101,9 @@ def generate():
     # Check if user can create presentation
     if not user.can_create_presentation(num_slides):
         return jsonify({
-            'error': 'Plan limit reached',
-            'upgrade_url': url_for('pricing')
+            'error': 'Plan limit reached. Please upgrade your plan to continue.',
+            'upgrade_url': url_for('pricing'),
+            'plan_limit': True
         }), 403
         
     try:
