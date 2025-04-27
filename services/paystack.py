@@ -21,14 +21,14 @@ class PaystackService:
             if not app_url:
                 raise ValueError("APP_URL environment variable is not set")
 
-            # Convert USD to NGN (Paystack uses kobo - 100 kobo = 1 NGN)
-            amount_ngn = amount_usd * 750  # Approximate USD to NGN conversion
-            amount_kobo = int(amount_ngn * 100)
+            # Convert USD to GHS (Paystack expects amount in pesewas - 100 pesewas = 1 GHS)
+            amount_ghs = amount_usd * 12.5  # Approximate USD to GHS conversion
+            amount_pesewas = int(amount_ghs * 100)
 
             data = {
                 'email': email,
-                'amount': amount_kobo,
-                'currency': 'NGN',
+                'amount': amount_pesewas,
+                'currency': 'GHS',  # Changed to Ghana Cedis
                 'callback_url': f'{app_url}/payment/callback',
                 'metadata': {
                     'user_id': user_id,
@@ -36,7 +36,7 @@ class PaystackService:
                 }
             }
 
-            print(f"[Paystack] Using API Key: {self.api_key[:8]}...")  # Show first 8 chars
+            print(f"[Paystack] Using API Key: {self.api_key[:8]}...")
             print(f"[Paystack] Using callback URL: {data['callback_url']}")
             print(f"[Paystack] Initializing transaction with data: {data}")
             
