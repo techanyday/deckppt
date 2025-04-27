@@ -174,7 +174,7 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
             # Remove slide numbers from title
             slide_title = title.split(" (")[0] if " (" in title else title
             title_placeholder.text = slide_title
-            title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
+            title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)  # Slightly smaller
             title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
             title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
             title_placeholder.text_frame.word_wrap = True
@@ -183,11 +183,11 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
             title_placeholder.top = Pt(24)  # 0.33 inch from top
             title_placeholder.left = Pt(36)  # 0.5 inch from left
             title_placeholder.width = Pt(648)  # 9 inches wide
-            title_placeholder.height = Pt(72)  # 1 inch tall
+            title_placeholder.height = Pt(60)  # Slightly shorter
             apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
 
-        # 2. Add image below title
-        image_height = Pt(288)  # 4 inches
+        # 2. Add image below title (smaller size)
+        image_height = Pt(216)  # 3 inches (reduced from 4)
         if image_data and slide_num == 0:
             try:
                 # Create a temporary file for the image
@@ -199,10 +199,10 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
                     tmp.flush()
                     
                     # Center the image below the title
-                    img_width = Pt(432)  # 6 inches wide
-                    img_height = image_height  # 4 inches tall
-                    img_left = (Pt(720) - img_width) / 2  # Center horizontally (10 inches - 6 inches) / 2
-                    img_top = Pt(108)  # 1.5 inches from top (below title)
+                    img_width = Pt(360)  # 5 inches wide (reduced from 6)
+                    img_height = image_height  # 3 inches tall
+                    img_left = (Pt(720) - img_width) / 2  # Center horizontally
+                    img_top = Pt(96)  # Slightly closer to title
                     
                     slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
                     
@@ -215,9 +215,9 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         # 3. Add bullet points below image
         # Calculate content area dimensions
         content_left = Pt(72)  # 1 inch from left
-        content_top = Pt(108) + image_height + Pt(36) if image_data else Pt(144)  # Below image or 2 inches from top
+        content_top = Pt(96) + image_height + Pt(24)  # Below image with less gap
         content_width = Pt(576)  # 8 inches wide
-        content_height = Pt(396) - image_height  # Remaining space (5.5 inches minus image height)
+        content_height = Pt(396) - image_height  # Remaining space
 
         # Create content text box
         content_placeholder = slide.shapes.add_textbox(
@@ -234,15 +234,15 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         for point in current_points:
             p = tf.add_paragraph()
             p.text = point
-            p.font.size = Pt(28)  # Larger font
+            p.font.size = Pt(24)  # Smaller font size (reduced from 28)
             p.font.name = 'Calibri'
             p.alignment = PP_ALIGN.LEFT
             p.level = 0  # Top level bullet
             apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
             
             # Add spacing between bullet points
-            p.space_after = Pt(20)  # Increased spacing
-            p.space_before = Pt(8)  # Increased spacing
+            p.space_after = Pt(12)  # Reduced spacing (from 20)
+            p.space_before = Pt(6)  # Reduced spacing (from 8)
     
     return all_slides[0]  # Return the first slide for compatibility
 
