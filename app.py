@@ -1,148 +1,91 @@
-from flask import Flask, request, jsonify, send_file
-from generate_ppt import generate_ppt
 import os
-import logging
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session, jsonify
+from werkzeug.utils import secure_filename
+from generate_ppt import generate_ppt
+from auth.google_auth import GoogleAuth, login_required
 
 app = Flask(__name__)
+app.secret_key = os.urandom(24)  # Required for session management
+auth = GoogleAuth(app)
 
 UPLOAD_FOLDER = 'generated_presentations'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route('/')
 def index():
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>DeckSky - AI Presentation Generator</title>
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-        <style>
-            body { padding: 20px; background-color: #f8f9fa; }
-            .container { max-width: 800px; }
-            .card { border-radius: 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
-            .theme-select { margin-bottom: 20px; }
-            .btn-primary { background-color: #0d6efd; border-color: #0d6efd; }
-            .btn-primary:hover { background-color: #0b5ed7; border-color: #0b5ed7; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="card p-4 mb-4">
-                <h1 class="text-center mb-4">DeckSky</h1>
-                <h5 class="text-center text-muted mb-4">AI-Powered Presentation Generator</h5>
-                
-                <form id="generateForm" class="needs-validation" novalidate>
-                    <div class="mb-3">
-                        <label for="topic" class="form-label">Topic</label>
-                        <input type="text" class="form-control" id="topic" required
-                               placeholder="Enter your presentation topic">
-                        <div class="form-text">Be specific and descriptive for better results</div>
-                    </div>
+    if 'user' in session:
+        return render_template('index.html', user=session['user'])
+    return redirect(url_for('login'))
 
-                    <div class="mb-3">
-                        <label for="theme" class="form-label">Theme</label>
-                        <select class="form-select" id="theme" required>
-                            <option value="professional">Professional (Clean & Business-like)</option>
-                            <option value="modern">Modern (Contemporary Design)</option>
-                            <option value="minimal">Minimal (Simple & Elegant)</option>
-                            <option value="creative">Creative (Bold & Artistic)</option>
-                            <option value="corporate">Corporate (Formal & Structured)</option>
-                        </select>
-                        <div class="form-text">Choose a theme that matches your presentation style</div>
-                    </div>
+@app.route('/login')
+def login():
+    if 'user' in session:
+        return redirect(url_for('index'))
+    return render_template('login.html')
 
-                    <div class="mb-3">
-                        <label for="slides" class="form-label">Number of Slides</label>
-                        <input type="number" class="form-control" id="slides" 
-                               min="3" max="15" value="5" required>
-                        <div class="form-text">Recommended: 5-10 slides for optimal content</div>
-                    </div>
+@app.route('/login/google')
+def google_login():
+    """Initiate Google OAuth flow"""
+    return redirect(auth.get_auth_url())
 
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary btn-lg">Generate Presentation</button>
-                    </div>
-                </form>
-            </div>
+@app.route('/login/google/authorized')
+def google_auth_callback():
+    """Handle Google OAuth callback"""
+    if 'error' in request.args:
+        return redirect(url_for('login'))
+    
+    if 'code' not in request.args:
+        return redirect(url_for('login'))
+    
+    # Exchange code for tokens
+    token_data = auth.get_token(request.args.get('code'))
+    if 'access_token' not in token_data:
+        return redirect(url_for('login'))
+    
+    # Get user info
+    user_info = auth.get_user_info(token_data['access_token'])
+    
+    # Store user info in session
+    session['user'] = {
+        'id': user_info['id'],
+        'email': user_info['email'],
+        'name': user_info.get('name', ''),
+        'picture': user_info.get('picture', '')
+    }
+    
+    return redirect(url_for('index'))
 
-            <div id="status" class="alert mt-3" style="display: none;"></div>
-        </div>
-
-        <script>
-            document.getElementById('generateForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const status = document.getElementById('status');
-                const submitButton = e.target.querySelector('button[type="submit"]');
-                
-                status.style.display = 'block';
-                status.className = 'alert alert-info';
-                status.textContent = 'Generating your presentation...';
-                submitButton.disabled = true;
-
-                const data = {
-                    topic: document.getElementById('topic').value,
-                    theme: document.getElementById('theme').value,
-                    num_slides: parseInt(document.getElementById('slides').value)
-                };
-
-                try {
-                    const response = await fetch('/generate', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(data)
-                    });
-
-                    const result = await response.json();
-                    if (result.success) {
-                        status.className = 'alert alert-success';
-                        status.textContent = 'Presentation generated successfully! Downloading...';
-                        window.location.href = `/download/${result.filename}`;
-                    } else {
-                        status.className = 'alert alert-danger';
-                        status.textContent = result.error || 'Failed to generate presentation';
-                    }
-                } catch (error) {
-                    status.className = 'alert alert-danger';
-                    status.textContent = 'Error generating presentation';
-                } finally {
-                    submitButton.disabled = false;
-                }
-            });
-        </script>
-    </body>
-    </html>
-    '''
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect(url_for('login'))
 
 @app.route('/generate', methods=['POST'])
+@login_required
 def generate():
+    """Generate presentation endpoint"""
+    topic = request.form.get('topic')
+    num_slides = int(request.form.get('num_slides', 5))
+    theme = request.form.get('theme', 'professional')
+    
+    if not topic:
+        return jsonify({'error': 'Topic is required'}), 400
+        
     try:
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'No data provided'}), 400
-
-        topic = data.get('topic')
-        theme = data.get('theme', 'professional')
-        num_slides = data.get('num_slides', 5)
-
-        if not topic:
-            return jsonify({'error': 'Topic is required'}), 400
-
-        filename = generate_ppt(topic, num_slides=num_slides, theme=theme)
-        return jsonify({'success': True, 'filename': filename})
-
+        filename = generate_ppt(topic, num_slides, theme)
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'download_url': url_for('download', filename=filename)
+        })
     except Exception as e:
-        logging.error(f"Error generating presentation: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 @app.route('/download/<filename>')
+@login_required
 def download(filename):
-    try:
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
-        return send_file(file_path, as_attachment=True)
-    except Exception as e:
-        logging.error(f"Error downloading file: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+    """Download generated presentation"""
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
 if __name__ == '__main__':
     app.run(debug=True)
