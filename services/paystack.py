@@ -22,7 +22,7 @@ class PaystackService:
                 raise ValueError("APP_URL environment variable is not set")
 
             # Convert USD to GHS (Paystack expects amount in pesewas - 100 pesewas = 1 GHS)
-            amount_ghs = amount_usd * 12.5  # Approximate USD to GHS conversion
+            amount_ghs = amount_usd * 15.3  # Current USD to GHS conversion rate
             amount_pesewas = int(amount_ghs * 100)
 
             data = {
@@ -38,6 +38,7 @@ class PaystackService:
 
             print(f"[Paystack] Using API Key: {self.api_key[:8]}...")
             print(f"[Paystack] Using callback URL: {data['callback_url']}")
+            print(f"[Paystack] Amount: ${amount_usd:.2f} USD = {amount_ghs:.2f} GHS ({amount_pesewas} pesewas)")
             print(f"[Paystack] Initializing transaction with data: {data}")
             
             response = requests.post(
