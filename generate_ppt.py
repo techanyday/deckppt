@@ -12,6 +12,7 @@ from pptx.enum.shapes import MSO_SHAPE
 from apis.openai_api import OpenAIClient
 import re
 import tempfile
+from io import BytesIO
 
 def get_theme_layout_ids(theme):
     """Get layout IDs and theme colors for different themes"""
@@ -219,7 +220,10 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
             try:
                 # Create a temporary file for the image
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-                    tmp.write(image_data)
+                    if isinstance(image_data, BytesIO):
+                        tmp.write(image_data.getvalue())
+                    else:
+                        tmp.write(image_data)
                     tmp.flush()
                     
                     # Calculate image position and size
