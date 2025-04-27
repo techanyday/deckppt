@@ -213,19 +213,19 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
     
     # Add image if provided
     if image_data:
-        # Image dimensions and position
+        # Image dimensions and position - reduced height for better balance
         img_left = Pt(36)
         img_top = Pt(100)  # Below title
         img_width = Pt(648)
-        img_height = Pt(300)  # Fixed height for consistency
+        img_height = Pt(200)  # Reduced from 300 to 200
         
         try:
             slide.shapes.add_picture(image_data, img_left, img_top, img_width, img_height)
         except Exception as e:
             logging.error(f"Error adding image to slide: {e}")
     
-    # Add content below image
-    content_top = Pt(420) if image_data else Pt(100)  # Adjust based on image presence
+    # Add content below image - adjusted starting position
+    content_top = Pt(320) if image_data else Pt(100)  # Adjusted from 420 to 320
     
     if content_placeholder:
         # Move the content placeholder below the image
@@ -235,7 +235,7 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
         # Create a new text box for content
         left = Pt(36)
         width = Pt(648)
-        height = Pt(200)  # Reduced height to prevent overflow
+        height = Pt(300)  # Increased from 200 to 300 for more space
         content_box = slide.shapes.add_textbox(left, content_top, width, height)
         tf = content_box.text_frame
     
@@ -247,6 +247,7 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
     # Add bullet points with proper formatting
     lines = content.strip().split('\n')
     first_paragraph = True
+    
     for line in lines:
         if line.strip():
             if first_paragraph:
@@ -256,12 +257,19 @@ def create_content_slide(ppt, title, content, theme="professional", image_data=N
                 p = tf.add_paragraph()
             
             p.text = line.strip()
-            p.font.size = Pt(18)
+            p.font.size = Pt(24)  # Increased from 18 to 24
             p.font.name = 'Calibri'
             p.level = 0  # This creates a bullet point
-            p.alignment = PP_ALIGN.LEFT  # Align text to the left
-            p.space_before = Pt(12)  # Add space before each bullet point
-            p.space_after = Pt(6)   # Add space after each bullet point
+            
+            # Set paragraph properties
+            p.alignment = PP_ALIGN.LEFT
+            p.space_before = Pt(12)
+            p.space_after = Pt(12)  # Increased from 6 to 12
+            
+            # Set bullet properties
+            p.line_spacing = 1.5  # Add more vertical spacing between lines
+            
+            # Apply color
             apply_theme_color(p, theme_colors["accent"])
     
     return slide
