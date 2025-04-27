@@ -19,7 +19,7 @@ def get_theme_layout_ids(theme):
         "professional": {
             "layouts": {
                 "title": 0,
-                "content": 1,
+                "content": 1,  # Using Title and Content layout
                 "section": 2,
                 "two_content": 3,
                 "comparison": 4
@@ -33,7 +33,7 @@ def get_theme_layout_ids(theme):
         "modern": {
             "layouts": {
                 "title": 0,
-                "content": 1,
+                "content": 1,  # Using Title and Content layout
                 "section": 2,
                 "two_content": 3,
                 "comparison": 4
@@ -47,7 +47,7 @@ def get_theme_layout_ids(theme):
         "minimal": {
             "layouts": {
                 "title": 0,
-                "content": 1,
+                "content": 1,  # Using Title and Content layout
                 "section": 2,
                 "two_content": 3,
                 "comparison": 4
@@ -61,7 +61,7 @@ def get_theme_layout_ids(theme):
         "creative": {
             "layouts": {
                 "title": 0,
-                "content": 1,
+                "content": 1,  # Using Title and Content layout
                 "section": 2,
                 "two_content": 3,
                 "comparison": 4
@@ -75,7 +75,7 @@ def get_theme_layout_ids(theme):
         "corporate": {
             "layouts": {
                 "title": 0,
-                "content": 1,
+                "content": 1,  # Using Title and Content layout
                 "section": 2,
                 "two_content": 3,
                 "comparison": 4
@@ -176,101 +176,67 @@ def create_title_slide(ppt, title, theme="professional"):
     return slide
 
 def create_content_slide(ppt, title, content, theme="professional", image_data=None):
-    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
+    # Use Title and Content layout
+    layout = ppt.slide_layouts[1]  # Title and Content layout
     slide = ppt.slides.add_slide(layout)
     theme_colors = get_theme_layout_ids(theme)["colors"]
     
     # Apply background color first
     apply_slide_background(slide, theme_colors["background"])
     
-    # Find title and content placeholders
-    title_placeholder = None
-    content_placeholder = None
+    # Get title and content placeholders
+    title_placeholder = slide.shapes.title
+    body_placeholder = slide.shapes.placeholders[1]  # Content placeholder
     
-    for shape in slide.placeholders:
-        if shape.placeholder_format.type == 1:  # Title
-            title_placeholder = shape
-        elif shape.placeholder_format.type == 7:  # Content
-            content_placeholder = shape
-    
-    # Add title if placeholder exists
-    if title_placeholder:
-        title_placeholder.text = title
-        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-        apply_theme_color(title_placeholder, theme_colors["title"])
-    else:
-        # If no title placeholder, create a text box for title
-        left = Pt(36)
-        top = Pt(36)
-        width = Pt(648)
-        height = Pt(50)
-        title_box = slide.shapes.add_textbox(left, top, width, height)
-        title_box.text_frame.text = title
-        title_box.text_frame.paragraphs[0].font.size = Pt(32)
-        title_box.text_frame.paragraphs[0].font.bold = True
-        title_box.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-        apply_theme_color(title_box, theme_colors["title"])
+    # Set title
+    title_placeholder.text = title
+    title_placeholder.text_frame.paragraphs[0].font.size = Pt(32)
+    title_placeholder.text_frame.paragraphs[0].font.bold = True
+    title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+    apply_theme_color(title_placeholder.text_frame.paragraphs[0], theme_colors["title"])
     
     # Add image if provided
     if image_data:
-        # Image dimensions and position - reduced height for better balance
         img_left = Pt(36)
-        img_top = Pt(100)  # Below title
+        img_top = Pt(100)
         img_width = Pt(648)
-        img_height = Pt(200)  # Reduced from 300 to 200
+        img_height = Pt(180)  # Reduced height further
         
         try:
             slide.shapes.add_picture(image_data, img_left, img_top, img_width, img_height)
         except Exception as e:
             logging.error(f"Error adding image to slide: {e}")
     
-    # Add content below image - adjusted starting position
-    content_top = Pt(320) if image_data else Pt(100)  # Adjusted from 420 to 320
+    # Position content placeholder below image
+    content_top = Pt(300) if image_data else Pt(100)  # Moved up
+    body_placeholder.top = content_top
     
-    if content_placeholder:
-        # Move the content placeholder below the image
-        content_placeholder.top = content_top
-        tf = content_placeholder.text_frame
-    else:
-        # Create a new text box for content
-        left = Pt(36)
-        width = Pt(648)
-        height = Pt(300)  # Increased from 200 to 300 for more space
-        content_box = slide.shapes.add_textbox(left, content_top, width, height)
-        tf = content_box.text_frame
+    # Clear existing text
+    tf = body_placeholder.text_frame
+    tf.clear()
     
-    # Format content
-    tf.text = ""
+    # Set text frame properties
     tf.word_wrap = True
-    tf.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+    tf.margin_left = 0
+    tf.margin_right = 0
     
-    # Add bullet points with proper formatting
-    lines = content.strip().split('\n')
-    first_paragraph = True
+    # Add bullet points
+    lines = [line.strip() for line in content.strip().split('\n') if line.strip()]
     
-    for line in lines:
-        if line.strip():
-            if first_paragraph:
-                p = tf.paragraphs[0]
-                first_paragraph = False
-            else:
-                p = tf.add_paragraph()
-            
-            p.text = line.strip()
-            p.font.size = Pt(24)  # Increased from 18 to 24
-            p.font.name = 'Calibri'
-            p.level = 0  # This creates a bullet point
-            
-            # Set paragraph properties
-            p.alignment = PP_ALIGN.LEFT
-            p.space_before = Pt(12)
-            p.space_after = Pt(12)  # Increased from 6 to 12
-            
-            # Set bullet properties
-            p.line_spacing = 1.5  # Add more vertical spacing between lines
-            
-            # Apply color
-            apply_theme_color(p, theme_colors["accent"])
+    for i, line in enumerate(lines):
+        p = tf.add_paragraph() if i > 0 else tf.paragraphs[0]
+        p.text = line
+        p.font.size = Pt(24)
+        p.font.name = 'Calibri'
+        p.alignment = PP_ALIGN.LEFT
+        p.level = 0
+        
+        # Remove extra spacing
+        p.space_before = 0
+        p.space_after = Pt(6)
+        
+        # Apply color
+        apply_theme_color(p, theme_colors["accent"])
     
     return slide
 
