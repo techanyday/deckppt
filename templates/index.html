@@ -156,6 +156,15 @@
                     <input type="number" class="form-control" id="num_slides" name="num_slides" 
                            value="5" min="1" max="{% if user.current_plan.value == 'free' %}5{% else %}10{% endif %}">
                     <div class="form-text">Recommended: 5-10 slides for optimal content</div>
+                    <div id="slides-upgrade-prompt" class="alert alert-info mt-2" style="display: none;">
+                        <p class="mb-2">To generate more than 5 slides, please upgrade.</p>
+                        <p class="mb-3">You can unlock a full presentation (up to 10 slides) for just $0.99,<br>
+                        or get a monthly plan for $2.99 and create up to 50 presentations every month!</p>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('pricing', plan='pay_per_deck') }}" class="btn btn-primary">Buy Deck ($0.99)</a>
+                            <a href="{{ url_for('pricing', plan='monthly') }}" class="btn btn-success">Subscribe Now ($2.99/month)</a>
+                        </div>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary w-100" id="generateBtn">
@@ -187,6 +196,22 @@
     </div>
 
     <script>
+        const slidesInput = document.getElementById('num_slides');
+        const upgradePrompt = document.getElementById('slides-upgrade-prompt');
+        
+        slidesInput.addEventListener('input', function(e) {
+            const value = parseInt(e.target.value);
+            {% if user.current_plan.value == 'free' %}
+            if (value > 5) {
+                e.target.value = 5;
+                upgradePrompt.style.display = 'block';
+                upgradePrompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                upgradePrompt.style.display = 'none';
+            }
+            {% endif %}
+        });
+
         document.getElementById('generateForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('generateBtn');
