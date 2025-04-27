@@ -148,9 +148,9 @@ def create_title_slide(ppt, title, theme="professional"):
     return slide
 
 def create_content_slide(ppt, title, bullet_points, theme="professional", image_data=None):
-    """Create a content slide with title, bullet points and optional image."""
+    """Create a content slide with title, image, and bullet points in that order."""
     # Limit bullet points per slide
-    MAX_POINTS_PER_SLIDE = 4
+    MAX_POINTS_PER_SLIDE = 5
     slides_needed = (len(bullet_points) + MAX_POINTS_PER_SLIDE - 1) // MAX_POINTS_PER_SLIDE
     all_slides = []
 
@@ -168,48 +168,61 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         # Apply background color
         apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
         
-        # Add title (add part number if multiple slides)
+        # 1. Add title at the top
         title_placeholder = slide.shapes.title
         if title_placeholder:
-            slide_title = title if slides_needed == 1 else f"{title} ({slide_num + 1}/{slides_needed})"
+            # Remove slide numbers from title
+            slide_title = title.split(" (")[0] if " (" in title else title
             title_placeholder.text = slide_title
-            title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)
+            title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
             title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-            title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+            title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
             title_placeholder.text_frame.word_wrap = True
             title_placeholder.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-            # Adjust title position
-            title_placeholder.top = Pt(36)  # 0.5 inch from top
+            # Position title
+            title_placeholder.top = Pt(24)  # 0.33 inch from top
             title_placeholder.left = Pt(36)  # 0.5 inch from left
+            title_placeholder.width = Pt(648)  # 9 inches wide
+            title_placeholder.height = Pt(72)  # 1 inch tall
             apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
 
-        # Calculate content area dimensions
-        content_left = Pt(36)  # 0.5 inch from left
-        content_top = Pt(108)  # 1.5 inches from top (below title)
-        content_width = Pt(648)  # 9 inches (full width)
-        content_height = Pt(432)  # 6 inches (remaining space)
-
-        # If we have an image on the first slide, adjust content width
+        # 2. Add image below title
+        image_height = Pt(288)  # 4 inches
         if image_data and slide_num == 0:
-            content_width = Pt(360)  # 5 inches for text
+            try:
+                # Create a temporary file for the image
+                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
+                    if isinstance(image_data, BytesIO):
+                        tmp.write(image_data.getvalue())
+                    else:
+                        tmp.write(image_data)
+                    tmp.flush()
+                    
+                    # Center the image below the title
+                    img_width = Pt(432)  # 6 inches wide
+                    img_height = image_height  # 4 inches tall
+                    img_left = (Pt(720) - img_width) / 2  # Center horizontally (10 inches - 6 inches) / 2
+                    img_top = Pt(108)  # 1.5 inches from top (below title)
+                    
+                    slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
+                    
+                os.unlink(tmp.name)  # Clean up temp file
+                
+            except Exception as e:
+                logging.error(f"Error adding image to slide: {e}")
+                image_height = Pt(0)  # If image fails, don't reserve space for it
 
-        # Add content placeholder or create text box
-        content_placeholder = None
-        for shape in slide.placeholders:
-            if shape.placeholder_format.type == 1:  # Content placeholder
-                content_placeholder = shape
-                break
+        # 3. Add bullet points below image
+        # Calculate content area dimensions
+        content_left = Pt(72)  # 1 inch from left
+        content_top = Pt(108) + image_height + Pt(36) if image_data else Pt(144)  # Below image or 2 inches from top
+        content_width = Pt(576)  # 8 inches wide
+        content_height = Pt(396) - image_height  # Remaining space (5.5 inches minus image height)
 
-        if not content_placeholder:
-            content_placeholder = slide.shapes.add_textbox(
-                content_left, content_top, content_width, content_height
-            )
-        else:
-            # Adjust existing placeholder position and size
-            content_placeholder.left = content_left
-            content_placeholder.top = content_top
-            content_placeholder.width = content_width
-            content_placeholder.height = content_height
+        # Create content text box
+        content_placeholder = slide.shapes.add_textbox(
+            content_left, content_top, content_width, content_height
+        )
 
         # Configure text frame for bullet points
         tf = content_placeholder.text_frame
@@ -221,39 +234,15 @@ def create_content_slide(ppt, title, bullet_points, theme="professional", image_
         for point in current_points:
             p = tf.add_paragraph()
             p.text = point
-            p.font.size = Pt(28)  # Slightly larger font
+            p.font.size = Pt(28)  # Larger font
             p.font.name = 'Calibri'
             p.alignment = PP_ALIGN.LEFT
             p.level = 0  # Top level bullet
             apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
             
             # Add spacing between bullet points
-            p.space_after = Pt(18)  # Increased spacing
+            p.space_after = Pt(20)  # Increased spacing
             p.space_before = Pt(8)  # Increased spacing
-
-        # Add image only to the first slide if provided
-        if image_data and slide_num == 0:
-            try:
-                # Create a temporary file for the image
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-                    if isinstance(image_data, BytesIO):
-                        tmp.write(image_data.getvalue())
-                    else:
-                        tmp.write(image_data)
-                    tmp.flush()
-                    
-                    # Position image on the right side
-                    img_left = Pt(432)  # 6 inches from left
-                    img_top = Pt(108)  # 1.5 inches from top (aligned with content)
-                    img_width = Pt(252)  # 3.5 inches wide
-                    img_height = Pt(252)  # 3.5 inches tall (square)
-                    
-                    slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
-                    
-                os.unlink(tmp.name)  # Clean up temp file
-                
-            except Exception as e:
-                logging.error(f"Error adding image to slide: {e}")
     
     return all_slides[0]  # Return the first slide for compatibility
 
