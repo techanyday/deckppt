@@ -1,539 +1,473 @@
 import os
 import logging
 from pptx import Presentation
-from pptx.util import Pt
+from pptx.util import Pt, Inches
 from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN, MSO_ANCHOR
-from pptx.enum.shapes import MSO_CONNECTOR
-from pptx.enum.dml import MSO_LINE
-from pptx.enum.text import PP_ALIGN
+from pptx.enum.shapes import MSO_CONNECTOR, MSO_SHAPE
+from pptx.enum.dml import MSO_LINE, MSO_THEME_COLOR
 from pptx.dml.color import RGBColor
-from pptx.enum.dml import MSO_THEME_COLOR
-from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import PP_ALIGN
 from apis.openai_api import OpenAIClient
 import re
 import tempfile
 from io import BytesIO
 from datetime import datetime
 
-def get_theme_layout_ids(theme):
-    """Get layout IDs and theme colors for different themes"""
-    themes = {
-        "professional": {
-            "layouts": {
-                "title": 0,
-                "content": 1,  # Using Title and Content layout
-                "section": 2,
-                "two_content": 3,
-                "comparison": 4
-            },
-            "colors": {
-                "background": "2B579A",  # Dark blue
-                "title": "FFFFFF",       # White
-                "accent": "E6F0FF"       # Light blue
-            }
-        },
-        "modern": {
-            "layouts": {
-                "title": 0,
-                "content": 1,  # Using Title and Content layout
-                "section": 2,
-                "two_content": 3,
-                "comparison": 4
-            },
-            "colors": {
-                "background": "292929",  # Dark gray
-                "title": "FFFFFF",       # White
-                "accent": "00BFA5"       # Teal
-            }
-        },
-        "minimal": {
-            "layouts": {
-                "title": 0,
-                "content": 1,  # Using Title and Content layout
-                "section": 2,
-                "two_content": 3,
-                "comparison": 4
-            },
-            "colors": {
-                "background": "F0F0F0",  # Light gray
-                "title": "1A1A1A",       # Almost black
-                "accent": "404040"       # Dark gray
-            }
-        },
-        "creative": {
-            "layouts": {
-                "title": 0,
-                "content": 1,  # Using Title and Content layout
-                "section": 2,
-                "two_content": 3,
-                "comparison": 4
-            },
-            "colors": {
-                "background": "6200EA",  # Deep purple
-                "title": "FFFFFF",       # White
-                "accent": "B388FF"       # Light purple
-            }
-        },
-        "corporate": {
-            "layouts": {
-                "title": 0,
-                "content": 1,  # Using Title and Content layout
-                "section": 2,
-                "two_content": 3,
-                "comparison": 4
-            },
-            "colors": {
-                "background": "01579B",  # Dark blue
-                "title": "FFFFFF",       # White
-                "accent": "81D4FA"       # Light blue
-            }
-        }
+class ColorPalette:
+    """Modern color palettes for professional presentations."""
+    MINIMALIST_BLUE = {
+        "background": RGBColor(255, 255, 255),  # White
+        "shape": RGBColor(230, 240, 250),      # Light Blue
+        "text": RGBColor(44, 62, 80),          # Dark Navy
+        "title": RGBColor(41, 128, 185)        # Blue
     }
-    return themes.get(theme, themes["professional"])
+    
+    SOFT_GRAY = {
+        "background": RGBColor(255, 255, 255),  # White
+        "shape": RGBColor(242, 242, 242),      # Light Gray
+        "text": RGBColor(51, 51, 51),          # Dark Gray
+        "title": RGBColor(44, 62, 80)          # Dark Blue-Gray
+    }
+    
+    FRESH_GREEN = {
+        "background": RGBColor(255, 255, 255),  # White
+        "shape": RGBColor(230, 247, 230),      # Light Green
+        "text": RGBColor(46, 139, 87),         # Dark Green
+        "title": RGBColor(39, 174, 96)         # Green
+    }
+    
+    ELEGANT_PURPLE = {
+        "background": RGBColor(250, 250, 250),  # Light Gray
+        "shape": RGBColor(239, 230, 250),      # Soft Lavender
+        "text": RGBColor(75, 0, 130),          # Dark Purple
+        "title": RGBColor(142, 68, 173)        # Purple
+    }
+    
+    PROFESSIONAL_TEAL = {
+        "background": RGBColor(255, 255, 255),  # White
+        "shape": RGBColor(230, 250, 247),      # Light Teal
+        "text": RGBColor(0, 128, 128),         # Dark Teal
+        "title": RGBColor(22, 160, 133)        # Teal
+    }
+    
+    @classmethod
+    def get_palette(cls, theme="minimalist_blue"):
+        """Get color palette by theme name."""
+        palettes = {
+            "minimalist_blue": cls.MINIMALIST_BLUE,
+            "soft_gray": cls.SOFT_GRAY,
+            "fresh_green": cls.FRESH_GREEN,
+            "elegant_purple": cls.ELEGANT_PURPLE,
+            "professional_teal": cls.PROFESSIONAL_TEAL
+        }
+        return palettes.get(theme, cls.MINIMALIST_BLUE)
 
-def apply_theme_color(shape, color_hex, is_fill=False):
-    """Apply theme color to shape"""
-    try:
-        rgb = RGBColor.from_string(color_hex)
-        if is_fill:
-            shape.fill.solid()
-            shape.fill.fore_color.rgb = rgb
-        else:
-            if hasattr(shape, 'font'):
-                shape.font.color.rgb = rgb
-            elif hasattr(shape, 'text_frame'):
-                for paragraph in shape.text_frame.paragraphs:
-                    paragraph.font.color.rgb = rgb
-    except Exception as e:
-        logging.error(f"Error applying theme color: {e}")
+def create_shaped_textbox(slide, left, top, width, height, text, palette, 
+                         is_title=False, shape_type=MSO_SHAPE.ROUNDED_RECTANGLE):
+    """Create a shaped textbox with modern styling."""
+    # Add shape background
+    shape = slide.shapes.add_shape(shape_type, left, top, width, height)
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = palette["shape"]
+    shape.line.fill.background()  # No outline
+    
+    # Add text
+    text_box = slide.shapes.add_textbox(
+        left + Inches(0.25),  # Add padding
+        top + Inches(0.25),
+        width - Inches(0.5),
+        height - Inches(0.5)
+    )
+    
+    frame = text_box.text_frame
+    frame.word_wrap = True
+    frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
+    
+    p = frame.add_paragraph()
+    p.text = text
+    p.font.size = Pt(24 if is_title else 18)
+    p.font.name = 'Calibri'
+    p.font.bold = is_title
+    p.alignment = PP_ALIGN.LEFT
+    p.font.color.rgb = palette["text"]
+    p.space_before = Pt(6)
+    p.space_after = Pt(6)
+    
+    return shape, text_box
 
-def apply_slide_background(slide, color_hex):
-    """Apply background color to slide"""
-    try:
-        background = slide.background
-        fill = background.fill
-        fill.solid()
-        fill.fore_color.rgb = RGBColor.from_string(color_hex)
-    except Exception as e:
-        logging.error(f"Error applying background color: {e}")
-
-def create_title_slide(ppt, title, theme="professional"):
-    """Create the title slide with background color and title text."""
-    # Get the title slide layout (first layout)
-    layout = ppt.slide_layouts[0]
+def create_modern_content_slide(ppt, title, insights, palette):
+    """Create a modern content slide with shaped text blocks."""
+    layout = ppt.slide_layouts[6]  # Blank layout
     slide = ppt.slides.add_slide(layout)
-    theme_colors = get_theme_layout_ids(theme)["colors"]
     
-    # Apply background color first
-    apply_slide_background(slide, theme_colors["background"])
+    # Set background
+    background = slide.background
+    fill = background.fill
+    fill.solid()
+    fill.fore_color.rgb = palette["background"]
     
-    # Get the title placeholder
-    title_placeholder = slide.shapes.title
-    
-    # Set title text and properties
-    title_placeholder.text = title
-    title_frame = title_placeholder.text_frame
-    title_frame.paragraphs[0].font.size = Pt(44)
-    title_frame.paragraphs[0].font.bold = True
-    title_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
+    # Add slide title
+    title_box = slide.shapes.add_textbox(
+        Inches(1), Inches(0.5), Inches(11.33), Inches(0.8)
+    )
+    title_frame = title_box.text_frame
     title_frame.word_wrap = True
-    title_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-    apply_theme_color(title_frame.paragraphs[0], theme_colors["title"])
     
-    # Remove the subtitle placeholder if it exists
-    for shape in slide.placeholders:
-        if shape.placeholder_format.type == 2:  # Subtitle placeholder
-            sp = shape._element
-            sp.getparent().remove(sp)
+    p = title_frame.add_paragraph()
+    p.text = title
+    p.font.size = Pt(40)
+    p.font.name = 'Calibri Light'
+    p.font.bold = True
+    p.alignment = PP_ALIGN.LEFT
+    p.font.color.rgb = palette["title"]
     
-    return slide
-
-def create_content_slide(ppt, title, bullet_points, theme="professional", image_data=None):
-    """Create a content slide with title, image, and bullet points in that order."""
-    # Limit bullet points per slide
-    MAX_POINTS_PER_SLIDE = 5
-    slides_needed = (len(bullet_points) + MAX_POINTS_PER_SLIDE - 1) // MAX_POINTS_PER_SLIDE
-    all_slides = []
-
-    for slide_num in range(slides_needed):
-        # Get points for this slide
-        start_idx = slide_num * MAX_POINTS_PER_SLIDE
-        end_idx = min(start_idx + MAX_POINTS_PER_SLIDE, len(bullet_points))
-        current_points = bullet_points[start_idx:end_idx]
-
-        # Create slide with current set of points
-        layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
-        slide = ppt.slides.add_slide(layout)
-        all_slides.append(slide)
+    # Create shaped text blocks for insights
+    if len(insights) <= 3:
+        # Single row layout with equal spacing
+        block_width = Inches(3.5)
+        total_width = block_width * len(insights)
+        spacing = (Inches(11.33) - total_width) / (len(insights) + 1)
         
-        # Apply background color
-        apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
-        
-        # Calculate consistent width for content
-        content_width = Pt(576)  # 8 inches wide
-        content_left = Pt(72)  # 1 inch from left margin
-        
-        # 1. Add title at the top
-        title_placeholder = slide.shapes.title
-        if title_placeholder:
-            # Remove slide numbers from title
-            slide_title = title.split(" (")[0] if " (" in title else title
-            title_placeholder.text = slide_title
-            title_placeholder.text_frame.paragraphs[0].font.size = Pt(40)
-            title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-            title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-            title_placeholder.text_frame.word_wrap = True
-            title_placeholder.text_frame.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-            # Position title
-            title_placeholder.top = Pt(24)  # 0.33 inch from top
-            title_placeholder.left = content_left
-            title_placeholder.width = content_width
-            title_placeholder.height = Pt(60)
-            apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
-
-        # 2. Add image below title
-        image_height = Pt(216)  # 3 inches
-        if image_data and slide_num == 0:
-            try:
-                # Create a temporary file for the image
-                with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
-                    if isinstance(image_data, BytesIO):
-                        tmp.write(image_data.getvalue())
-                    else:
-                        tmp.write(image_data)
-                    tmp.flush()
-                    
-                    # Use same width as content area
-                    img_width = content_width
-                    img_height = image_height
-                    img_left = content_left  # Align with bullet points
-                    img_top = Pt(96)  # Below title
-                    
-                    slide.shapes.add_picture(tmp.name, img_left, img_top, img_width, img_height)
-                    
-                os.unlink(tmp.name)  # Clean up temp file
-                
-            except Exception as e:
-                logging.error(f"Error adding image to slide: {e}")
-                image_height = Pt(0)  # If image fails, don't reserve space for it
-
-        # 3. Add bullet points below image
-        content_top = Pt(96) + image_height + Pt(24)  # Below image
-        content_height = Pt(396) - image_height  # Remaining space
-
-        # Create content text box
-        content_placeholder = slide.shapes.add_textbox(
-            content_left, content_top, content_width, content_height
-        )
-
-        # Configure text frame for bullet points
-        tf = content_placeholder.text_frame
-        tf.word_wrap = True
-        tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
-        tf.clear()  # Clear existing content
-
-        # Add bullet points with proper formatting
-        for point in current_points:
+        for i, insight in enumerate(insights):
+            left = Inches(1) + (block_width + spacing) * i
+            shape = slide.shapes.add_shape(
+                MSO_SHAPE.ROUNDED_RECTANGLE,
+                left, Inches(1.8),
+                block_width, Inches(2.5)
+            )
+            
+            # Shape styling
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = palette["shape"]
+            shape.line.color.rgb = palette["shape"]  # Match fill color
+            shape.line.width = Pt(1)
+            
+            # Add text
+            text_box = slide.shapes.add_textbox(
+                left + Inches(0.25),
+                Inches(1.8) + Inches(0.25),
+                block_width - Inches(0.5),
+                Inches(2)
+            )
+            
+            tf = text_box.text_frame
+            tf.word_wrap = True
+            tf.margin_left = 0
+            tf.margin_right = 0
+            
             p = tf.add_paragraph()
-            p.text = point
-            p.font.size = Pt(24)
+            p.text = insight
+            p.font.size = Pt(16)
             p.font.name = 'Calibri'
             p.alignment = PP_ALIGN.LEFT
-            p.level = 0  # Top level bullet
-            apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
-            
-            # Add spacing between bullet points
-            p.space_after = Pt(12)
-            p.space_before = Pt(6)
-    
-    return all_slides[0]  # Return the first slide for compatibility
-
-def create_section_slide(ppt, title, theme="professional"):
-    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["section"]]
-    slide = ppt.slides.add_slide(layout)
-    
-    # Find title placeholder
-    title_placeholder = None
-    for shape in slide.placeholders:
-        if shape.placeholder_format.type == 1:  # Title
-            title_placeholder = shape
-            break
-    
-    # Add title
-    if title_placeholder:
-        title_placeholder.text = title
-        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
-        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+            p.font.color.rgb = palette["text"]
+            p.space_before = Pt(0)
+            p.space_after = Pt(6)
     else:
-        # If no title placeholder, create a text box for title
-        left = Pt(36)  # 0.5 inch from left
-        top = Pt(216)  # 3 inches from top (centered vertically)
-        width = Pt(648)  # 9 inches
-        height = Pt(72)  # 1 inch
-        title_box = slide.shapes.add_textbox(left, top, width, height)
-        tf = title_box.text_frame
-        tf.text = title
-        tf.paragraphs[0].font.size = Pt(44)
-        tf.paragraphs[0].font.name = 'Calibri'
-        tf.paragraphs[0].alignment = PP_ALIGN.CENTER
-        apply_theme_color(tf.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+        # 2x2 or 2x3 grid layout
+        block_width = Inches(5.4)
+        block_height = Inches(2)
+        h_spacing = Inches(0.53)  # Horizontal spacing
+        v_spacing = Inches(0.4)   # Vertical spacing
+        
+        for i, insight in enumerate(insights[:6]):
+            row = i // 2
+            col = i % 2
+            
+            left = Inches(1) + (block_width + h_spacing) * col
+            top = Inches(1.8) + (block_height + v_spacing) * row
+            
+            # Add shape background
+            shape = slide.shapes.add_shape(
+                MSO_SHAPE.ROUNDED_RECTANGLE,
+                left, top, block_width, block_height
+            )
+            
+            # Shape styling
+            shape.fill.solid()
+            shape.fill.fore_color.rgb = palette["shape"]
+            shape.line.color.rgb = palette["shape"]
+            shape.line.width = Pt(1)
+            
+            # Add text
+            text_box = slide.shapes.add_textbox(
+                left + Inches(0.25),
+                top + Inches(0.25),
+                block_width - Inches(0.5),
+                block_height - Inches(0.5)
+            )
+            
+            tf = text_box.text_frame
+            tf.word_wrap = True
+            tf.margin_left = 0
+            tf.margin_right = 0
+            
+            p = tf.add_paragraph()
+            p.text = insight
+            p.font.size = Pt(16)
+            p.font.name = 'Calibri'
+            p.alignment = PP_ALIGN.LEFT
+            p.font.color.rgb = palette["text"]
+            p.space_before = Pt(0)
+            p.space_after = Pt(6)
     
     return slide
 
-def generate_intro_slide(ppt, presentation_title, theme="professional"):
-    """Generate an introduction slide with overview of the topic."""
-    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["title"]]
-    slide = ppt.slides.add_slide(layout)
-    
-    # Apply background color
-    apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
-    
-    # Add title
-    title_placeholder = slide.shapes.title
-    if title_placeholder:
-        overview_title = f"{presentation_title} Overview"
-        title_placeholder.text = overview_title
-        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
-        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
-    
-    # Add overview text
-    content_left = Pt(72)  # 1 inch from left
-    content_top = Pt(216)  # 3 inches from top
-    content_width = Pt(576)  # 8 inches wide
-    content_height = Pt(216)  # 3 inches tall
-    
-    content = slide.shapes.add_textbox(content_left, content_top, content_width, content_height)
-    tf = content.text_frame
-    tf.word_wrap = True
-    
-    # Generate overview text using OpenAI
+def generate_content_sections(topic, num_sections):
+    """Generate unique content sections without numbering."""
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
         
     client = OpenAIClient(api_key)
-    prompt = f"""Generate a brief 2-3 sentence overview for a presentation titled '{presentation_title}'.
-    The overview should be professional, engaging, and set up the context for the presentation.
-    Do not use phrases like 'In this presentation' or 'We will discuss'.
-    Instead, make direct statements about the topic."""
+    
+    prompt = f"""Create {num_sections} distinct insights about {topic} for a modern business presentation.
+    Each insight should be a complete thought that fits in a small text block (30-40 words).
+    
+    Requirements:
+    1. Focus on business impact and strategic value
+    2. Include specific metrics or examples
+    3. Start with action verbs
+    4. Be forward-looking and actionable
+    5. No bullet points or lists
+    6. Each insight must be unique (no repetition)
+    
+    Example insights:
+    "Implement AI-powered customer analytics to increase retention by 25% through personalized engagement strategies and predictive behavior modeling."
+    
+    "Deploy blockchain-based supply chain tracking to reduce operational costs by 40% while ensuring end-to-end transparency and compliance."
+    
+    Format: Return each insight as a separate paragraph."""
     
     try:
         response = client.generate(prompt)
-        overview_text = response.strip()
+        insights = [insight.strip() for insight in response.strip().split("\n\n")
+                   if insight.strip()][:num_sections]
+        
+        return insights
     except Exception as e:
-        logging.error(f"Error generating overview: {e}")
-        overview_text = f"Discover key insights and strategies about {presentation_title.lower()}. This presentation explores proven approaches and practical solutions for success in this domain."
-    
-    p = tf.add_paragraph()
-    p.text = overview_text
-    p.font.size = Pt(28)
-    p.font.name = 'Calibri'
-    p.alignment = PP_ALIGN.CENTER
-    apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
-    
-    return slide
+        logging.error(f"Error generating insights: {e}")
+        return []
 
-def generate_conclusion_slide(ppt, key_points, theme="professional"):
-    """Generate a conclusion slide with key takeaways."""
-    layout = ppt.slide_layouts[get_theme_layout_ids(theme)["layouts"]["content"]]
+def create_modern_conclusion_slide(ppt, key_insights, palette):
+    """Create a modern conclusion slide with shaped takeaways."""
+    layout = ppt.slide_layouts[6]  # Blank layout
     slide = ppt.slides.add_slide(layout)
     
-    # Apply background color
-    apply_slide_background(slide, get_theme_layout_ids(theme)["colors"]["background"])
+    # Set background
+    background = slide.background
+    fill = background.fill
+    fill.solid()
+    fill.fore_color.rgb = palette["background"]
     
     # Add title
-    title_placeholder = slide.shapes.title
-    if title_placeholder:
-        title_placeholder.text = "Key Takeaways"
-        title_placeholder.text_frame.paragraphs[0].font.size = Pt(44)
-        title_placeholder.text_frame.paragraphs[0].font.name = 'Calibri'
-        title_placeholder.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
-        apply_theme_color(title_placeholder.text_frame.paragraphs[0], get_theme_layout_ids(theme)["colors"]["title"])
+    title_box = slide.shapes.add_textbox(
+        Inches(1), Inches(0.5),
+        Inches(11.33), Inches(0.8)
+    )
+    title_frame = title_box.text_frame
+    title_frame.word_wrap = True
     
-    # Add key takeaways
-    content_left = Pt(72)  # 1 inch from left
-    content_top = Pt(144)  # 2 inches from top
-    content_width = Pt(576)  # 8 inches wide
-    content_height = Pt(360)  # 5 inches tall
+    p = title_frame.add_paragraph()
+    p.text = "Key Takeaways"
+    p.font.size = Pt(40)
+    p.font.name = 'Calibri Light'
+    p.font.bold = True
+    p.alignment = PP_ALIGN.LEFT
+    p.font.color.rgb = palette["title"]
     
-    content = slide.shapes.add_textbox(content_left, content_top, content_width, content_height)
-    tf = content.text_frame
-    tf.word_wrap = True
+    # Add insights in shaped boxes with equal spacing
+    block_width = Inches(11.33)
+    block_height = Inches(1.2)
+    v_spacing = Inches(0.3)
     
-    # Add takeaway points
-    for point in key_points[:5]:  # Limit to 5 points
+    for i, insight in enumerate(key_insights[:4]):  # Limit to 4 takeaways
+        top = Inches(1.8) + (block_height + v_spacing) * i
+        
+        # Add shape background
+        shape = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(1), top, block_width, block_height
+        )
+        
+        # Shape styling
+        shape.fill.solid()
+        shape.fill.fore_color.rgb = palette["shape"]
+        shape.line.color.rgb = palette["shape"]
+        shape.line.width = Pt(1)
+        
+        # Add text
+        text_box = slide.shapes.add_textbox(
+            Inches(1.25), top + Inches(0.2),
+            block_width - Inches(0.5), block_height - Inches(0.4)
+        )
+        
+        tf = text_box.text_frame
+        tf.word_wrap = True
+        tf.margin_left = 0
+        tf.margin_right = 0
+        
         p = tf.add_paragraph()
-        p.text = point
-        p.font.size = Pt(28)
+        p.text = insight
+        p.font.size = Pt(18)
         p.font.name = 'Calibri'
         p.alignment = PP_ALIGN.LEFT
-        p.level = 0  # Top level bullet
-        apply_theme_color(p, get_theme_layout_ids(theme)["colors"]["title"])
-        p.space_after = Pt(20)
-        p.space_before = Pt(8)
+        p.font.color.rgb = palette["text"]
+        p.space_before = Pt(0)
+        p.space_after = Pt(6)
     
     return slide
 
-def generate_slide_overview(title):
-    """Generate a brief overview of the presentation topic."""
+def create_title_slide(ppt, title, palette):
+    """Create a clean, modern title slide."""
+    layout = ppt.slide_layouts[6]  # Blank layout
+    slide = ppt.slides.add_slide(layout)
+    
+    # Set background
+    background = slide.background
+    fill = background.fill
+    fill.solid()
+    fill.fore_color.rgb = palette["background"]
+    
+    # Add title with modern styling
+    title_box = slide.shapes.add_textbox(
+        Inches(1.5), Inches(2.5), 
+        Inches(10.33), Inches(2)
+    )
+    title_frame = title_box.text_frame
+    title_frame.word_wrap = True
+    
+    p = title_frame.add_paragraph()
+    p.text = title
+    p.font.size = Pt(54)
+    p.font.name = 'Calibri'
+    p.font.bold = True
+    p.alignment = PP_ALIGN.CENTER
+    p.font.color.rgb = palette["title"]
+    
+    return slide
+
+def generate_intro_slide(ppt, title, palette):
+    """Generate a modern introduction slide."""
+    layout = ppt.slide_layouts[6]  # Blank layout
+    slide = ppt.slides.add_slide(layout)
+    
+    # Set background
+    background = slide.background
+    fill = background.fill
+    fill.solid()
+    fill.fore_color.rgb = palette["background"]
+    
+    # Add title
+    title_box = slide.shapes.add_textbox(
+        Inches(1), Inches(0.5), 
+        Inches(11.33), Inches(0.8)
+    )
+    title_frame = title_box.text_frame
+    p = title_frame.add_paragraph()
+    p.text = "Overview"
+    p.font.size = Pt(36)
+    p.font.name = 'Calibri'
+    p.font.bold = True
+    p.alignment = PP_ALIGN.LEFT
+    p.font.color.rgb = palette["title"]
+    
+    # Generate and add overview text in a shaped box
     api_key = os.environ.get('OPENAI_API_KEY')
     if not api_key:
         raise ValueError("OPENAI_API_KEY environment variable is not set")
         
     client = OpenAIClient(api_key)
-    prompt = f"""Generate a brief 2-3 sentence overview for a presentation titled '{title}'.
-    The overview should be professional, engaging, and set up the context for the presentation.
-    Do not use phrases like 'In this presentation' or 'We will discuss'.
-    Instead, make direct statements about the topic."""
+    prompt = f"""Write a compelling 2-3 sentence introduction for {title}.
+    Requirements:
+    1. Start with a powerful market insight or trend
+    2. Focus on business impact and opportunity
+    3. Keep it concise (40-60 words)
+    4. Use active voice and present tense
+    5. NO phrases like 'this presentation' or 'we will discuss'
+    
+    Example:
+    'The renewable energy sector is experiencing unprecedented growth, with global investments exceeding $500B in 2024. Advanced technologies and favorable policies are accelerating adoption, creating new opportunities for businesses to lead in sustainability while reducing operational costs.'"""
     
     try:
-        response = client.generate(prompt)
-        return response.strip()
+        overview_text = client.generate(prompt).strip()
     except Exception as e:
         logging.error(f"Error generating overview: {e}")
-        return f"Discover key insights and strategies about {title.lower()}. This presentation explores proven approaches and practical solutions for success in this domain."
-
-def generate_slide_title(content, base_title):
-    """Generate a unique and relevant title based on slide content."""
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-    client = OpenAIClient(api_key)
-    prompt = f"""Generate a short, professional slide title (4-6 words) based on this content:
-    Base title: {base_title}
-    Content points: {content}
-    The title should be specific to the content but not too long.
-    Do not use generic words like 'Overview' or 'Introduction'.
-    Do not use punctuation in the title."""
+        overview_text = f"The {title.lower()} landscape is rapidly evolving, presenting unprecedented opportunities for innovation and growth. Organizations that embrace these changes and implement strategic solutions will gain significant competitive advantages in the coming years."
     
-    try:
-        response = client.generate(prompt)
-        return response.strip()
-    except Exception as e:
-        logging.error(f"Error generating slide title: {e}")
-        return base_title
+    create_shaped_textbox(
+        slide, Inches(1), Inches(1.8),
+        Inches(11.33), Inches(2),
+        overview_text, palette
+    )
+    
+    return slide
 
-def generate_ppt(topic, num_slides=5, theme="professional"):
+def get_theme_layout_ids(theme="minimalist_blue"):
+    """Get the layout and color IDs for the selected theme."""
+    return {
+        "colors": ColorPalette.get_palette(theme)
+    }
+
+def apply_theme_color(paragraph, color):
+    """Apply theme color to paragraph text."""
+    paragraph.font.color.rgb = color
+
+def create_presentation(topic, num_slides=5, theme="minimalist_blue"):
+    """Create a modern, professional presentation."""
+    ppt = Presentation()
+    palette = ColorPalette.get_palette(theme)
+    
+    # Set slide size to widescreen
+    ppt.slide_width = Inches(13.33)
+    ppt.slide_height = Inches(7.5)
+    
+    # Title slide
+    title_slide = create_title_slide(ppt, topic, palette)
+    
+    # Overview slide
+    overview = generate_intro_slide(ppt, topic, palette)
+    
+    # Generate insights
+    insights = generate_content_sections(topic, (num_slides - 3) * 3)  # -3 for title, overview, conclusion
+    
+    # Create content slides
+    for i in range(0, len(insights), 3):
+        slide_insights = insights[i:i+3]
+        if slide_insights:
+            create_modern_content_slide(ppt, 
+                f"Key Insights: {topic.split()[0]} {i//3 + 1}",
+                slide_insights, palette)
+    
+    # Conclusion slide
+    conclusion_insights = [
+        insight for insight in insights
+        if any(word in insight.lower() for word in ['increase', 'grow', 'improve', 'enable', 'transform'])
+    ][:3]
+    create_modern_conclusion_slide(ppt, conclusion_insights, palette)
+    
+    return ppt
+
+def generate_ppt(topic, num_slides=5, theme="minimalist_blue"):
+    """Generate a professional presentation."""
     # Clean the topic for file naming
     clean_topic = re.sub(r'[^\w\s-]', '', topic.replace('/', '_'))
-    clean_topic = re.sub(r'\s+', '_', clean_topic.strip())
-    
-    # Initialize OpenAI client
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-    client = OpenAIClient(api_key)
     
     try:
-        # Generate content for all slides
-        sections = []
-        remaining_slides = num_slides - 2  # Account for intro and conclusion slides
+        # Create presentation with modern design
+        ppt = create_presentation(topic, num_slides, theme)
         
-        # Generate main content points
-        content_prompt = f"""Generate {remaining_slides} distinct sections for a presentation about '{topic}'.
-        For each section:
-        1. Focus on a unique aspect or subtopic
-        2. Include 3-4 clear, concise bullet points
-        3. Each bullet point should be a complete, actionable statement
-        4. Avoid repetition between sections
-        5. Ensure natural progression of ideas
+        # Save to a temporary file
+        temp_dir = tempfile.gettempdir()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"{clean_topic}_{timestamp}.pptx"
+        file_path = os.path.join(temp_dir, file_name)
         
-        Format each section's bullet points as a list."""
-        
-        content_response = client.generate(content_prompt)
-        content_sections = content_response.strip().split("\n\n")
-        
-        # Process each section
-        for section_text in content_sections[:remaining_slides]:
-            # Extract bullet points
-            points = [p.strip().strip('*-').strip() for p in section_text.split("\n") 
-                     if p.strip() and not p.strip().isdigit()]
-            
-            # Generate image prompt for this section
-            image_prompt = f"""Based on these points about {topic}:
-            {points}
-            Generate a creative prompt for an image that would complement this content.
-            The image should be professional and business-appropriate.
-            Focus on abstract concepts, data visualization, or business scenarios."""
-            
-            try:
-                image_prompt_response = client.generate(image_prompt)
-                image_data = client.generate_image(image_prompt_response)
-            except Exception as e:
-                logging.error(f"Error generating image: {e}")
-                image_data = None
-            
-            sections.append({
-                "points": points,
-                "image_data": image_data
-            })
-        
-        # Create the complete presentation
-        ppt = create_presentation(topic, sections)
-        
-        # Save the presentation in the static/downloads directory
-        timestamp = datetime.now().strftime("%H%M%S")
-        filename = f"{clean_topic}_{timestamp[:6]}.pptx"
-        
-        # Create downloads directory if it doesn't exist
-        downloads_dir = os.path.join("static", "downloads")
-        os.makedirs(downloads_dir, exist_ok=True)
-        
-        # Save the file
-        file_path = os.path.join(downloads_dir, filename)
         ppt.save(file_path)
-        logging.info(f"Presentation saved to: {file_path}")
+        logging.info(f"Presentation saved to {file_path}")
         
-        return filename
+        return file_path
         
     except Exception as e:
         logging.error(f"Error generating presentation: {e}")
         raise
-
-def create_presentation(title, sections):
-    """Create a complete presentation with proper structure."""
-    ppt = Presentation()
-    
-    # 1. Generate intro slide
-    generate_intro_slide(ppt, title)
-    
-    # 2. Generate content slides with unique titles
-    all_points = []  # Collect points for conclusion
-    for section in sections:
-        section_points = section.get("points", [])
-        all_points.extend(section_points)
-        
-        # Generate unique title for this section
-        section_title = generate_slide_title(section_points, title)
-        
-        # Create content slides
-        create_content_slide(ppt, section_title, section_points, 
-                           image_data=section.get("image_data"))
-    
-    # 3. Generate conclusion slide
-    # Extract key takeaways from all points
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-    client = OpenAIClient(api_key)
-    takeaways_prompt = f"""Based on these presentation points, generate 3-5 key takeaways:
-    {all_points}
-    Each takeaway should be a complete, actionable statement.
-    Focus on the most important insights and practical implications."""
-    
-    try:
-        takeaways = client.generate(takeaways_prompt).strip().split("\n")
-    except Exception as e:
-        logging.error(f"Error generating takeaways: {e}")
-        # Create basic takeaways from the first point of each section
-        takeaways = [p[0] for p in [s.get("points", []) for s in sections] if p][:5]
-    
-    generate_conclusion_slide(ppt, takeaways)
-    
-    return ppt
