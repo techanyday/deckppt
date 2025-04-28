@@ -315,7 +315,18 @@ def generate_intro_slide(ppt, presentation_title, theme="professional"):
         raise ValueError("OPENAI_API_KEY environment variable is not set")
         
     client = OpenAIClient(api_key)
-    overview_text = generate_slide_overview(presentation_title)
+    prompt = f"""Generate a brief 2-3 sentence overview for a presentation titled '{presentation_title}'.
+    The overview should be professional, engaging, and set up the context for the presentation.
+    Do not use phrases like 'In this presentation' or 'We will discuss'.
+    Instead, make direct statements about the topic."""
+    
+    try:
+        response = client.generate(prompt)
+        overview_text = response.strip()
+    except Exception as e:
+        logging.error(f"Error generating overview: {e}")
+        overview_text = f"Discover key insights and strategies about {presentation_title.lower()}. This presentation explores proven approaches and practical solutions for success in this domain."
+    
     p = tf.add_paragraph()
     p.text = overview_text
     p.font.size = Pt(28)
@@ -379,7 +390,7 @@ def generate_slide_overview(title):
     Instead, make direct statements about the topic."""
     
     try:
-        response = client.generate_text(prompt)
+        response = client.generate(prompt)
         return response.strip()
     except Exception as e:
         logging.error(f"Error generating overview: {e}")
@@ -400,7 +411,7 @@ def generate_slide_title(content, base_title):
     Do not use punctuation in the title."""
     
     try:
-        response = client.generate_text(prompt)
+        response = client.generate(prompt)
         return response.strip()
     except Exception as e:
         logging.error(f"Error generating slide title: {e}")
@@ -434,7 +445,7 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
         
         Format each section's bullet points as a list."""
         
-        content_response = client.generate_text(content_prompt)
+        content_response = client.generate(content_prompt)
         content_sections = content_response.strip().split("\n\n")
         
         # Process each section
@@ -451,7 +462,7 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
             Focus on abstract concepts, data visualization, or business scenarios."""
             
             try:
-                image_prompt_response = client.generate_text(image_prompt)
+                image_prompt_response = client.generate(image_prompt)
                 image_data = client.generate_image(image_prompt_response)
             except Exception as e:
                 logging.error(f"Error generating image: {e}")
@@ -509,7 +520,7 @@ def create_presentation(title, sections):
     Focus on the most important insights and practical implications."""
     
     try:
-        takeaways = client.generate_text(takeaways_prompt).strip().split("\n")
+        takeaways = client.generate(takeaways_prompt).strip().split("\n")
     except Exception as e:
         logging.error(f"Error generating takeaways: {e}")
         # Create basic takeaways from the first point of each section
