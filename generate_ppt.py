@@ -476,10 +476,18 @@ def generate_ppt(topic, num_slides=5, theme="professional"):
         # Create the complete presentation
         ppt = create_presentation(topic, sections)
         
-        # Save the presentation
+        # Save the presentation in the static/downloads directory
         timestamp = datetime.now().strftime("%H%M%S")
         filename = f"{clean_topic}_{timestamp[:6]}.pptx"
-        ppt.save(filename)
+        
+        # Create downloads directory if it doesn't exist
+        downloads_dir = os.path.join("static", "downloads")
+        os.makedirs(downloads_dir, exist_ok=True)
+        
+        # Save the file
+        file_path = os.path.join(downloads_dir, filename)
+        ppt.save(file_path)
+        logging.info(f"Presentation saved to: {file_path}")
         
         return filename
         
