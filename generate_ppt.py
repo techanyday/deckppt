@@ -457,16 +457,15 @@ def generate_ppt(topic, num_slides=5, theme="minimalist_blue"):
         # Create presentation with modern design
         ppt = create_presentation(topic, num_slides, theme)
         
-        # Save to a temporary file
-        temp_dir = tempfile.gettempdir()
+        # Save to a temporary file with a secure name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        file_name = f"{clean_topic}_{timestamp}.pptx"
-        file_path = os.path.join(temp_dir, file_name)
+        temp_filename = f"{clean_topic}_{timestamp}.pptx"
+        temp_path = os.path.join(tempfile.gettempdir(), temp_filename)
         
-        ppt.save(file_path)
-        logging.info(f"Presentation saved to {file_path}")
+        ppt.save(temp_path)
+        logging.info(f"Presentation saved to {temp_path}")
         
-        return file_path
+        return temp_path
         
     except Exception as e:
         logging.error(f"Error generating presentation: {e}")

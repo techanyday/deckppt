@@ -1,5 +1,5 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session, jsonify, send_file
 from werkzeug.utils import secure_filename
 from generate_ppt import generate_ppt
 from auth.google_auth import GoogleAuth, login_required
@@ -8,6 +8,8 @@ from services.paystack import PaystackService
 from datetime import datetime, timedelta
 import logging
 from sqlalchemy import text
+import tempfile
+import shutil
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,7 +23,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:/
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_size': 5,
-    'pool_recycle': 280,  # Recycle connections before Render's 5-minute timeout
+    'pool_recycle': 280,
     'pool_timeout': 20,
     'max_overflow': 2
 }
@@ -142,7 +144,13 @@ def generate():
         }), 403
         
     try:
-        filename = generate_ppt(topic, num_slides, theme)
+        # Generate presentation in temp directory
+        temp_file = generate_ppt(topic, num_slides, theme)
+        
+        # Move file to uploads folder with secure filename
+        filename = secure_filename(os.path.basename(temp_file))
+        dest_path = os.path.join(UPLOAD_FOLDER, filename)
+        shutil.move(temp_file, dest_path)
         
         # Create presentation record
         presentation = Presentation(
@@ -155,7 +163,6 @@ def generate():
         
         # Update usage metrics
         user.increment_usage(num_slides)
-        
         db.session.commit()
         
         return jsonify({
@@ -164,15 +171,31 @@ def generate():
             'download_url': url_for('download', filename=filename)
         })
     except Exception as e:
+        logger.error(f"Error generating presentation: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/download/<filename>')
 @login_required
 def download(filename):
-    # Ensure the filename is secure
-    filename = secure_filename(filename)
-    # Return file from the static/downloads directory
-    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
+    """Download a presentation file."""
+    try:
+        # Ensure the filename is secure
+        filename = secure_filename(filename)
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        
+        if not os.path.exists(file_path):
+            logger.error(f"File not found: {file_path}")
+            return jsonify({'error': 'File not found'}), 404
+            
+        return send_from_directory(
+            UPLOAD_FOLDER,
+            filename,
+            as_attachment=True,
+            download_name=filename
+        )
+    except Exception as e:
+        logger.error(f"Error downloading file: {e}")
+        return jsonify({'error': 'Error downloading file'}), 500
 
 @app.route('/pricing')
 @login_required
