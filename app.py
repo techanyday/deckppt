@@ -1,7 +1,6 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session, jsonify, send_file
+from flask import Flask, render_template, request, redirect, url_for, send_from_directory, session, jsonify
 from werkzeug.utils import secure_filename
-from generate_ppt import generate_ppt
 from auth.google_auth import GoogleAuth, login_required
 from models.database import db, User, Presentation, PlanType
 from services.paystack import PaystackService
@@ -10,6 +9,8 @@ import logging
 from sqlalchemy import text
 import tempfile
 import shutil
+from slides_generator import GoogleSlidesGenerator
+import secrets
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,19 +19,27 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 
-# Configure SQLAlchemy with connection pooling
+# Configure SQLAlchemy
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 5,
-    'pool_recycle': 280,
-    'pool_timeout': 20,
-    'max_overflow': 2
-}
+
+# Only add pooling options for PostgreSQL
+if 'postgres' in app.config['SQLALCHEMY_DATABASE_URI']:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 5,
+        'pool_recycle': 280,
+        'pool_timeout': 20,
+        'max_overflow': 2
+    }
 db.init_app(app)
 
+# Initialize services
 auth = GoogleAuth(app)
-paystack = PaystackService()
+if os.environ.get('PAYSTACK_SECRET_KEY'):
+    paystack = PaystackService()
+else:
+    paystack = None  # Skip Paystack for local development
+slides = GoogleSlidesGenerator('slides_credentials.json')
 
 # Configure upload and download directories
 UPLOAD_FOLDER = os.path.join('static', 'downloads')
@@ -130,7 +139,7 @@ def generate():
     user = User.query.get(session['user']['id'])
     topic = request.form.get('topic')
     num_slides = int(request.form.get('num_slides', 5))
-    theme = request.form.get('theme', 'professional')
+    theme = request.form.get('theme', 'MODERN_BLUE')
     
     if not topic:
         return jsonify({'error': 'Topic is required'}), 400
@@ -144,20 +153,35 @@ def generate():
         }), 403
         
     try:
-        # Generate presentation in temp directory
-        temp_file = generate_ppt(topic, num_slides, theme)
+        # Check if we have valid credentials
+        if 'slides_credentials' not in session:
+            # Generate a state token for security
+            state = secrets.token_urlsafe(32)
+            session['oauth_state'] = state
+            
+            # Get the authorization URL
+            auth_url, state = slides.get_authorization_url(state=state)
+            
+            return jsonify({
+                'auth_required': True,
+                'auth_url': auth_url
+            })
         
-        # Move file to uploads folder with secure filename
-        filename = secure_filename(os.path.basename(temp_file))
-        dest_path = os.path.join(UPLOAD_FOLDER, filename)
-        shutil.move(temp_file, dest_path)
+        # Initialize slides service with stored credentials
+        slides.init_service(session['slides_credentials'])
         
+        # Generate presentation
+        presentation_id = slides.create_presentation(topic, num_slides, theme)
+        
+        if not presentation_id:
+            return jsonify({'error': 'Failed to create presentation'}), 500
+            
         # Create presentation record
         presentation = Presentation(
             user_id=user.id,
             title=topic,
             num_slides=num_slides,
-            file_path=filename
+            file_path=presentation_id  # Store presentation ID instead of file path
         )
         db.session.add(presentation)
         
@@ -167,12 +191,44 @@ def generate():
         
         return jsonify({
             'success': True,
-            'filename': filename,
-            'download_url': url_for('download', filename=filename)
+            'presentation_id': presentation_id,
+            'view_url': f'https://docs.google.com/presentation/d/{presentation_id}/edit'
         })
+        
     except Exception as e:
         logger.error(f"Error generating presentation: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    """Handle the OAuth2 callback from Google Slides API."""
+    try:
+        # Verify state to prevent CSRF
+        state = request.args.get('state')
+        stored_state = session.pop('oauth_state', None)
+        
+        if not state or state != stored_state:
+            return jsonify({'error': 'Invalid state parameter'}), 400
+            
+        # Get credentials from callback code
+        code = request.args.get('code')
+        credentials = slides.get_credentials_from_code(code, state)
+        
+        # Store credentials in session
+        session['slides_credentials'] = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+        
+        return redirect(url_for('index'))
+        
+    except Exception as e:
+        logger.error(f"Error in OAuth callback: {e}")
+        return jsonify({'error': 'Authentication failed'}), 500
 
 @app.route('/download/<filename>')
 @login_required

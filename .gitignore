@@ -1,41 +1,38 @@
+# Python
 __pycache__/
-.idea/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
 .Python
-env/
-venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment variables
 .env
 .venv
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.pytest_cache/
-.python-version
-
-# Generated files
-*.pptx
-static/downloads/*
-!static/downloads/.gitkeep
-
-# Database
-*.db
-*.sqlite3
+env/
+venv/
+ENV/
 
 # IDE
+.idea/
 .vscode/
-*.swp
-*.swo
-*~
 
-# OS
-.DS_Store
-Thumbs.db
+# Project specific
+*.db
+generated_presentations/
+slides_credentials.json
+token.json

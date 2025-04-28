@@ -167,7 +167,7 @@
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-100" id="generateBtn">
+                <button type="button" class="btn btn-primary w-100" id="generateBtn" onclick="generatePresentation()">
                     Generate Presentation
                 </button>
             </form>
@@ -196,65 +196,53 @@
     </div>
 
     <script>
-        const slidesInput = document.getElementById('num_slides');
-        const upgradePrompt = document.getElementById('slides-upgrade-prompt');
-        
-        slidesInput.addEventListener('input', function(e) {
-            const value = parseInt(e.target.value);
-            {% if user.current_plan.value == 'free' %}
-            if (value > 5) {
-                e.target.value = 5;
-                upgradePrompt.style.display = 'block';
-                upgradePrompt.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } else {
-                upgradePrompt.style.display = 'none';
-            }
-            {% endif %}
-        });
-
-        document.getElementById('generateForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const btn = document.getElementById('generateBtn');
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
-
+        async function generatePresentation() {
+            const topic = document.getElementById('topic').value;
+            const numSlides = document.getElementById('num_slides').value;
+            const theme = document.getElementById('theme').value;
+            
             try {
-                const response = await fetch('{{ url_for("generate") }}', {
+                const response = await fetch('/generate', {
                     method: 'POST',
-                    body: new FormData(e.target)
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        topic: topic,
+                        num_slides: numSlides,
+                        theme: theme
+                    })
                 });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    window.location.href = result.download_url;
-                } else if (result.plan_limit) {
-                    // Show plan limit modal
-                    const alertHtml = `
-                        <div class="alert-upgrade">
-                            <div>
-                                <strong>Plan limit reached!</strong>
-                                <p class="mb-0">${result.error}</p>
-                            </div>
-                            <a href="${result.upgrade_url}" class="btn btn-warning">Upgrade Now</a>
-                        </div>
-                    `;
-                    const container = document.querySelector('.form-container');
-                    container.insertAdjacentHTML('beforebegin', alertHtml);
-                    
-                    // Scroll to the alert
-                    document.querySelector('.alert-upgrade').scrollIntoView({ behavior: 'smooth' });
+                
+                const data = await response.json();
+                
+                if (data.auth_required) {
+                    // Redirect to Google OAuth
+                    window.location.href = data.auth_url;
+                    return;
+                }
+                
+                if (data.success) {
+                    // Show success message with link to presentation
+                    Swal.fire({
+                        title: 'Success!',
+                        html: `Your presentation has been created!<br><br>
+                              <a href="${data.view_url}" target="_blank" class="btn btn-primary">
+                                Open in Google Slides
+                              </a>`,
+                        icon: 'success'
+                    });
                 } else {
-                    alert(result.error || 'An error occurred');
+                    throw new Error(data.error || 'Failed to generate presentation');
                 }
             } catch (error) {
-                console.error('Error:', error);
-                alert('An error occurred while generating the presentation');
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = 'Generate Presentation';
+                Swal.fire({
+                    title: 'Error',
+                    text: error.message,
+                    icon: 'error'
+                });
             }
-        });
+        }
     </script>
 </body>
 </html>
