@@ -25,24 +25,35 @@ class OpenAIClient:
             raise
 
     def generate_image(self, prompt, size="1024x1024"):
-        """Generate an image using DALL-E 3"""
+        """Generate an image using DALL-E 2"""
         try:
+            # Log the image generation attempt
+            logging.info(f"[OpenAI] Generating image with prompt: {prompt}")
+
             response = self.client.images.generate(
-                model="dall-e-3",
+                model="dall-e-2",  # Use DALL-E 2 which is more cost-effective
                 prompt=prompt,
                 size=size,
-                quality="standard",
                 n=1
             )
             
+            # Log the response
+            logging.info(f"[OpenAI] Image generation response: {response}")
+            
             # Download the image
             image_url = response.data[0].url
+            logging.info(f"[OpenAI] Downloading image from: {image_url}")
+            
             image_response = requests.get(image_url)
             if image_response.status_code == 200:
-                return BytesIO(image_response.content)
+                logging.info("[OpenAI] Image downloaded successfully")
+                return image_response.content  # Return bytes directly instead of BytesIO
             else:
-                raise Exception(f"Failed to download image: {image_response.status_code}")
+                error_msg = f"Failed to download image: {image_response.status_code}"
+                logging.error(f"[OpenAI] {error_msg}")
+                raise Exception(error_msg)
                 
         except Exception as e:
-            logging.error(f"Error generating image: {str(e)}")
-            raise
+            logging.error(f"[OpenAI] Error generating image: {str(e)}")
+            # Return None instead of raising to prevent presentation generation failure
+            return None
