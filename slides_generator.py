@@ -1,4 +1,5 @@
 import os
+import json
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
@@ -14,14 +15,23 @@ logger = logging.getLogger(__name__)
 SCOPES = ['https://www.googleapis.com/auth/presentations']
 
 class GoogleSlidesGenerator:
-    def __init__(self, client_secrets_file):
-        self.client_secrets_file = client_secrets_file
+    def __init__(self, client_secrets_file=None):
         self.service = None
+        
+        # For production (Render), load from environment variable
+        if os.environ.get('GOOGLE_SLIDES_CREDENTIALS'):
+            self.client_secrets = json.loads(os.environ.get('GOOGLE_SLIDES_CREDENTIALS'))
+        # For local development, load from file
+        elif client_secrets_file and os.path.exists(client_secrets_file):
+            with open(client_secrets_file, 'r') as f:
+                self.client_secrets = json.load(f)
+        else:
+            raise ValueError("No credentials found. Please provide either a client_secrets_file or set GOOGLE_SLIDES_CREDENTIALS environment variable.")
         
     def get_authorization_url(self, state=None):
         """Get the authorization URL for OAuth2 flow."""
-        flow = Flow.from_client_secrets_file(
-            self.client_secrets_file, 
+        flow = Flow.from_client_config(
+            self.client_secrets,
             scopes=SCOPES,
             state=state
         )
@@ -38,8 +48,8 @@ class GoogleSlidesGenerator:
         
     def get_credentials_from_code(self, code, state=None):
         """Get credentials from OAuth2 callback code."""
-        flow = Flow.from_client_secrets_file(
-            self.client_secrets_file,
+        flow = Flow.from_client_config(
+            self.client_secrets,
             scopes=SCOPES,
             state=state
         )
