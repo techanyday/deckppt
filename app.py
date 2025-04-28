@@ -6,13 +6,24 @@ from auth.google_auth import GoogleAuth, login_required
 from models.database import db, User, Presentation, PlanType
 from services.paystack import PaystackService
 from datetime import datetime, timedelta
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 
-# Configure SQLAlchemy
+# Configure SQLAlchemy with connection pooling
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 5,
+    'pool_recycle': 280,  # Recycle connections before Render's 5-minute timeout
+    'pool_timeout': 20,
+    'max_overflow': 2
+}
 db.init_app(app)
 
 auth = GoogleAuth(app)
@@ -25,6 +36,28 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 # Create database tables
 with app.app_context():
     db.create_all()
+
+@app.before_request
+def before_request():
+    """Ensure database connection is active"""
+    try:
+        db.session.execute('SELECT 1')
+    except Exception as e:
+        logger.error(f"Database connection error: {e}")
+        db.session.rollback()
+        return jsonify({'error': 'Service temporarily unavailable'}), 503
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle internal server errors"""
+    logger.error(f"Internal Server Error: {error}")
+    db.session.rollback()
+    return jsonify({'error': 'An unexpected error occurred'}), 500
+
+@app.errorhandler(404)
+def not_found_error(error):
+    """Handle not found errors"""
+    return jsonify({'error': 'Resource not found'}), 404
 
 @app.route('/')
 def index():
@@ -194,7 +227,39 @@ def cancel_subscription():
 
 @app.route('/healthz')
 def health_check():
-    return jsonify({'status': 'healthy'}), 200
+    """Enhanced health check endpoint"""
+    try:
+        # Check database connection
+        db.session.execute('SELECT 1')
+        
+        # Check file system
+        if not os.path.exists(UPLOAD_FOLDER):
+            raise Exception("Upload directory not accessible")
+            
+        # Check if we can write to the upload directory
+        test_file = os.path.join(UPLOAD_FOLDER, '.health_check')
+        try:
+            with open(test_file, 'w') as f:
+                f.write('ok')
+            os.remove(test_file)
+        except Exception as e:
+            raise Exception(f"Upload directory not writable: {e}")
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'checks': {
+                'database': 'ok',
+                'filesystem': 'ok'
+            }
+        }), 200
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.utcnow().isoformat()
+        }), 503
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
