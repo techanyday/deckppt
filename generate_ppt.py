@@ -19,35 +19,50 @@ class ColorPalette:
         "background": RGBColor(255, 255, 255),  # White
         "shape": RGBColor(230, 240, 250),      # Light Blue
         "text": RGBColor(44, 62, 80),          # Dark Navy
-        "title": RGBColor(41, 128, 185)        # Blue
+        "title": RGBColor(41, 128, 185),        # Blue
+        "primary": RGBColor(41, 128, 185),        # Blue
+        "secondary": RGBColor(44, 62, 80),          # Dark Navy
+        "accent": RGBColor(230, 240, 250)      # Light Blue
     }
     
     SOFT_GRAY = {
         "background": RGBColor(255, 255, 255),  # White
         "shape": RGBColor(242, 242, 242),      # Light Gray
         "text": RGBColor(51, 51, 51),          # Dark Gray
-        "title": RGBColor(44, 62, 80)          # Dark Blue-Gray
+        "title": RGBColor(44, 62, 80),          # Dark Blue-Gray
+        "primary": RGBColor(44, 62, 80),          # Dark Blue-Gray
+        "secondary": RGBColor(51, 51, 51),          # Dark Gray
+        "accent": RGBColor(242, 242, 242)      # Light Gray
     }
     
     FRESH_GREEN = {
         "background": RGBColor(255, 255, 255),  # White
         "shape": RGBColor(230, 247, 230),      # Light Green
         "text": RGBColor(46, 139, 87),         # Dark Green
-        "title": RGBColor(39, 174, 96)         # Green
+        "title": RGBColor(39, 174, 96),         # Green
+        "primary": RGBColor(39, 174, 96),         # Green
+        "secondary": RGBColor(46, 139, 87),         # Dark Green
+        "accent": RGBColor(230, 247, 230)      # Light Green
     }
     
     ELEGANT_PURPLE = {
         "background": RGBColor(250, 250, 250),  # Light Gray
         "shape": RGBColor(239, 230, 250),      # Soft Lavender
         "text": RGBColor(75, 0, 130),          # Dark Purple
-        "title": RGBColor(142, 68, 173)        # Purple
+        "title": RGBColor(142, 68, 173),        # Purple
+        "primary": RGBColor(142, 68, 173),        # Purple
+        "secondary": RGBColor(75, 0, 130),          # Dark Purple
+        "accent": RGBColor(239, 230, 250)      # Soft Lavender
     }
     
     PROFESSIONAL_TEAL = {
         "background": RGBColor(255, 255, 255),  # White
         "shape": RGBColor(230, 250, 247),      # Light Teal
         "text": RGBColor(0, 128, 128),         # Dark Teal
-        "title": RGBColor(22, 160, 133)        # Teal
+        "title": RGBColor(22, 160, 133),        # Teal
+        "primary": RGBColor(22, 160, 133),        # Teal
+        "secondary": RGBColor(0, 128, 128),         # Dark Teal
+        "accent": RGBColor(230, 250, 247)      # Light Teal
     }
     
     @classmethod
@@ -106,90 +121,102 @@ def create_modern_content_slide(ppt, title, insights, palette):
     fill.solid()
     fill.fore_color.rgb = palette["background"]
     
-    # Add slide title with shape background
+    # Add title shape with gradient fill
     title_shape = slide.shapes.add_shape(
         MSO_SHAPE.ROUNDED_RECTANGLE,
-        Inches(1), Inches(0.5),
-        Inches(11.33), Inches(0.8)
+        Inches(0.5), Inches(0.5),
+        Inches(12.33), Inches(0.8)
     )
-    title_shape.fill.solid()
-    title_shape.fill.fore_color.rgb = palette["shape"]
-    title_shape.line.color.rgb = palette["shape"]
-    title_shape.line.width = Pt(1)
+    
+    # Apply gradient fill to title shape
+    fill = title_shape.fill
+    fill.gradient()
+    fill.gradient_stops[0].color.rgb = palette["primary"]
+    fill.gradient_stops[0].position = 0
+    fill.gradient_stops[1].color.rgb = palette["secondary"]
+    fill.gradient_stops[1].position = 1
+    title_shape.line.width = 0
     
     # Add title text
     title_box = slide.shapes.add_textbox(
-        Inches(1.25), Inches(0.6),
-        Inches(10.83), Inches(0.6)
+        Inches(0.75), Inches(0.6),
+        Inches(11.83), Inches(0.6)
     )
     title_frame = title_box.text_frame
     title_frame.word_wrap = True
+    title_frame.margin_bottom = 0
+    title_frame.margin_left = 0
     
     p = title_frame.add_paragraph()
     p.text = title
-    p.font.size = Pt(32)
-    p.font.name = 'Calibri Light'
-    p.font.bold = True
+    p.font.size = Pt(28)
+    p.font.name = 'Segoe UI Light'
+    p.font.bold = False
     p.alignment = PP_ALIGN.LEFT
-    p.font.color.rgb = palette["title"]
+    p.font.color.rgb = RGBColor(255, 255, 255)
     
-    # Create shaped text blocks for insights
+    # Calculate layout for insights
+    content_top = Inches(1.7)
+    content_bottom = Inches(7.0)
+    available_height = content_bottom - content_top
+    
     if len(insights) <= 3:
-        # Single row layout with equal spacing
-        block_width = Inches(3.5)
+        # Single row layout
+        block_width = Inches(3.8)
+        block_height = Inches(4.8)
         total_width = block_width * len(insights)
-        spacing = (Inches(11.33) - total_width) / (len(insights) + 1)
+        spacing = (Inches(12.33) - total_width) / (len(insights) + 1)
         
         for i, insight in enumerate(insights):
-            left = Inches(1) + (block_width + spacing) * i
+            left = Inches(0.5) + spacing + (block_width + spacing) * i
             
             # Add shape background
             shape = slide.shapes.add_shape(
                 MSO_SHAPE.ROUNDED_RECTANGLE,
-                left, Inches(1.8),
-                block_width, Inches(2.5)
+                left, content_top,
+                block_width, block_height
             )
             
             # Shape styling
             shape.fill.solid()
             shape.fill.fore_color.rgb = palette["shape"]
-            shape.line.color.rgb = palette["shape"]
+            shape.line.color.rgb = palette["accent"]
             shape.line.width = Pt(1)
             
             # Add text
             text_box = slide.shapes.add_textbox(
-                left + Inches(0.25),
-                Inches(1.8) + Inches(0.25),
-                block_width - Inches(0.5),
-                Inches(2)
+                left + Inches(0.3),
+                content_top + Inches(0.3),
+                block_width - Inches(0.6),
+                block_height - Inches(0.6)
             )
             
             tf = text_box.text_frame
             tf.word_wrap = True
-            tf.margin_left = 0
-            tf.margin_right = 0
+            tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
             
             p = tf.add_paragraph()
             p.text = insight
             p.font.size = Pt(16)
-            p.font.name = 'Calibri'
+            p.font.name = 'Segoe UI'
             p.alignment = PP_ALIGN.LEFT
             p.font.color.rgb = palette["text"]
             p.space_before = Pt(0)
-            p.space_after = Pt(6)
+            p.space_after = Pt(12)
+            p.line_spacing = 1.2
     else:
         # 2x2 grid layout
-        block_width = Inches(5.4)
-        block_height = Inches(2)
-        h_spacing = Inches(0.53)
+        block_width = Inches(5.67)
+        block_height = Inches(2.4)
+        h_spacing = Inches(0.5)
         v_spacing = Inches(0.4)
         
-        for i, insight in enumerate(insights[:4]):  # Limit to 4 insights per slide
+        for i, insight in enumerate(insights[:4]):
             row = i // 2
             col = i % 2
             
-            left = Inches(1) + (block_width + h_spacing) * col
-            top = Inches(1.8) + (block_height + v_spacing) * row
+            left = Inches(0.5) + (block_width + h_spacing) * col
+            top = content_top + (block_height + v_spacing) * row
             
             # Add shape background
             shape = slide.shapes.add_shape(
@@ -201,30 +228,30 @@ def create_modern_content_slide(ppt, title, insights, palette):
             # Shape styling
             shape.fill.solid()
             shape.fill.fore_color.rgb = palette["shape"]
-            shape.line.color.rgb = palette["shape"]
+            shape.line.color.rgb = palette["accent"]
             shape.line.width = Pt(1)
             
             # Add text
             text_box = slide.shapes.add_textbox(
-                left + Inches(0.25),
-                top + Inches(0.25),
-                block_width - Inches(0.5),
-                block_height - Inches(0.5)
+                left + Inches(0.3),
+                top + Inches(0.3),
+                block_width - Inches(0.6),
+                block_height - Inches(0.6)
             )
             
             tf = text_box.text_frame
             tf.word_wrap = True
-            tf.margin_left = 0
-            tf.margin_right = 0
+            tf.auto_size = MSO_AUTO_SIZE.SHAPE_TO_FIT_TEXT
             
             p = tf.add_paragraph()
             p.text = insight
             p.font.size = Pt(16)
-            p.font.name = 'Calibri'
+            p.font.name = 'Segoe UI'
             p.alignment = PP_ALIGN.LEFT
             p.font.color.rgb = palette["text"]
             p.space_before = Pt(0)
             p.space_after = Pt(6)
+            p.line_spacing = 1.2
     
     return slide
 
