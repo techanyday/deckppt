@@ -7,6 +7,7 @@ from models.database import db, User, Presentation, PlanType
 from services.paystack import PaystackService
 from datetime import datetime, timedelta
 import logging
+from sqlalchemy import text
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +42,7 @@ with app.app_context():
 def before_request():
     """Ensure database connection is active"""
     try:
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
     except Exception as e:
         logger.error(f"Database connection error: {e}")
         db.session.rollback()
@@ -230,7 +231,7 @@ def health_check():
     """Enhanced health check endpoint"""
     try:
         # Check database connection
-        db.session.execute('SELECT 1')
+        db.session.execute(text('SELECT 1'))
         
         # Check file system
         if not os.path.exists(UPLOAD_FOLDER):
