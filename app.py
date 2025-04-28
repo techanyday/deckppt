@@ -18,7 +18,8 @@ db.init_app(app)
 auth = GoogleAuth(app)
 paystack = PaystackService()
 
-UPLOAD_FOLDER = 'generated_presentations'
+# Configure upload and download directories
+UPLOAD_FOLDER = os.path.join('static', 'downloads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Create database tables
@@ -134,6 +135,9 @@ def generate():
 @app.route('/download/<filename>')
 @login_required
 def download(filename):
+    # Ensure the filename is secure
+    filename = secure_filename(filename)
+    # Return file from the static/downloads directory
     return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
 @app.route('/pricing')
