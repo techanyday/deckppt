@@ -106,16 +106,28 @@ def create_modern_content_slide(ppt, title, insights, palette):
     fill.solid()
     fill.fore_color.rgb = palette["background"]
     
-    # Add slide title
+    # Add slide title with shape background
+    title_shape = slide.shapes.add_shape(
+        MSO_SHAPE.ROUNDED_RECTANGLE,
+        Inches(1), Inches(0.5),
+        Inches(11.33), Inches(0.8)
+    )
+    title_shape.fill.solid()
+    title_shape.fill.fore_color.rgb = palette["shape"]
+    title_shape.line.color.rgb = palette["shape"]
+    title_shape.line.width = Pt(1)
+    
+    # Add title text
     title_box = slide.shapes.add_textbox(
-        Inches(1), Inches(0.5), Inches(11.33), Inches(0.8)
+        Inches(1.25), Inches(0.6),
+        Inches(10.83), Inches(0.6)
     )
     title_frame = title_box.text_frame
     title_frame.word_wrap = True
     
     p = title_frame.add_paragraph()
     p.text = title
-    p.font.size = Pt(40)
+    p.font.size = Pt(32)
     p.font.name = 'Calibri Light'
     p.font.bold = True
     p.alignment = PP_ALIGN.LEFT
@@ -130,6 +142,8 @@ def create_modern_content_slide(ppt, title, insights, palette):
         
         for i, insight in enumerate(insights):
             left = Inches(1) + (block_width + spacing) * i
+            
+            # Add shape background
             shape = slide.shapes.add_shape(
                 MSO_SHAPE.ROUNDED_RECTANGLE,
                 left, Inches(1.8),
@@ -139,7 +153,7 @@ def create_modern_content_slide(ppt, title, insights, palette):
             # Shape styling
             shape.fill.solid()
             shape.fill.fore_color.rgb = palette["shape"]
-            shape.line.color.rgb = palette["shape"]  # Match fill color
+            shape.line.color.rgb = palette["shape"]
             shape.line.width = Pt(1)
             
             # Add text
@@ -164,13 +178,13 @@ def create_modern_content_slide(ppt, title, insights, palette):
             p.space_before = Pt(0)
             p.space_after = Pt(6)
     else:
-        # 2x2 or 2x3 grid layout
+        # 2x2 grid layout
         block_width = Inches(5.4)
         block_height = Inches(2)
-        h_spacing = Inches(0.53)  # Horizontal spacing
-        v_spacing = Inches(0.4)   # Vertical spacing
+        h_spacing = Inches(0.53)
+        v_spacing = Inches(0.4)
         
-        for i, insight in enumerate(insights[:6]):
+        for i, insight in enumerate(insights[:4]):  # Limit to 4 insights per slide
             row = i // 2
             col = i % 2
             
@@ -180,7 +194,8 @@ def create_modern_content_slide(ppt, title, insights, palette):
             # Add shape background
             shape = slide.shapes.add_shape(
                 MSO_SHAPE.ROUNDED_RECTANGLE,
-                left, top, block_width, block_height
+                left, top,
+                block_width, block_height
             )
             
             # Shape styling
@@ -212,42 +227,6 @@ def create_modern_content_slide(ppt, title, insights, palette):
             p.space_after = Pt(6)
     
     return slide
-
-def generate_content_sections(topic, num_sections):
-    """Generate unique content sections without numbering."""
-    api_key = os.environ.get('OPENAI_API_KEY')
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
-        
-    client = OpenAIClient(api_key)
-    
-    prompt = f"""Create {num_sections} distinct insights about {topic} for a modern business presentation.
-    Each insight should be a complete thought that fits in a small text block (30-40 words).
-    
-    Requirements:
-    1. Focus on business impact and strategic value
-    2. Include specific metrics or examples
-    3. Start with action verbs
-    4. Be forward-looking and actionable
-    5. No bullet points or lists
-    6. Each insight must be unique (no repetition)
-    
-    Example insights:
-    "Implement AI-powered customer analytics to increase retention by 25% through personalized engagement strategies and predictive behavior modeling."
-    
-    "Deploy blockchain-based supply chain tracking to reduce operational costs by 40% while ensuring end-to-end transparency and compliance."
-    
-    Format: Return each insight as a separate paragraph."""
-    
-    try:
-        response = client.generate(prompt)
-        insights = [insight.strip() for insight in response.strip().split("\n\n")
-                   if insight.strip()][:num_sections]
-        
-        return insights
-    except Exception as e:
-        logging.error(f"Error generating insights: {e}")
-        return []
 
 def create_modern_conclusion_slide(ppt, key_insights, palette):
     """Create a modern conclusion slide with shaped takeaways."""
@@ -423,30 +402,80 @@ def create_presentation(topic, num_slides=5, theme="minimalist_blue"):
     ppt.slide_height = Inches(7.5)
     
     # Title slide
-    title_slide = create_title_slide(ppt, topic, palette)
+    create_title_slide(ppt, topic, palette)
     
     # Overview slide
-    overview = generate_intro_slide(ppt, topic, palette)
+    generate_intro_slide(ppt, topic, palette)
     
     # Generate insights
-    insights = generate_content_sections(topic, (num_slides - 3) * 3)  # -3 for title, overview, conclusion
+    insights = generate_content_sections(topic, (num_slides - 2) * 3)  # -2 for title and overview
     
-    # Create content slides
+    # Create content slides (one slide per 3 insights)
     for i in range(0, len(insights), 3):
         slide_insights = insights[i:i+3]
         if slide_insights:
-            create_modern_content_slide(ppt, 
-                f"Key Insights: {topic.split()[0]} {i//3 + 1}",
-                slide_insights, palette)
+            create_modern_content_slide(
+                ppt,
+                f"Key Insights",
+                slide_insights,
+                palette
+            )
     
-    # Conclusion slide
-    conclusion_insights = [
-        insight for insight in insights
-        if any(word in insight.lower() for word in ['increase', 'grow', 'improve', 'enable', 'transform'])
-    ][:3]
-    create_modern_conclusion_slide(ppt, conclusion_insights, palette)
+    # Ensure we have the exact number of slides requested
+    current_slides = len(ppt.slides)
+    if current_slides < num_slides:
+        # Generate additional insights if needed
+        additional_insights = generate_content_sections(topic, (num_slides - current_slides) * 3)
+        
+        # Create remaining slides
+        for i in range(0, len(additional_insights), 3):
+            if len(ppt.slides) < num_slides:
+                slide_insights = additional_insights[i:i+3]
+                if slide_insights:
+                    create_modern_content_slide(
+                        ppt,
+                        f"Additional Insights",
+                        slide_insights,
+                        palette
+                    )
     
     return ppt
+
+def generate_content_sections(topic, num_sections):
+    """Generate unique content sections without numbering."""
+    api_key = os.environ.get('OPENAI_API_KEY')
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+        
+    client = OpenAIClient(api_key)
+    
+    prompt = f"""Create {num_sections} distinct insights about {topic} for a modern business presentation.
+    Each insight should be a complete thought that fits in a small text block (30-40 words).
+    
+    Requirements:
+    1. Focus on business impact and strategic value
+    2. Include specific metrics or examples
+    3. Start with action verbs
+    4. Be forward-looking and actionable
+    5. No bullet points or lists
+    6. Each insight must be unique (no repetition)
+    
+    Example insights:
+    "Implement AI-powered customer analytics to increase retention by 25% through personalized engagement strategies and predictive behavior modeling."
+    
+    "Deploy blockchain-based supply chain tracking to reduce operational costs by 40% while ensuring end-to-end transparency and compliance."
+    
+    Format: Return each insight as a separate paragraph."""
+    
+    try:
+        response = client.generate(prompt)
+        insights = [insight.strip() for insight in response.strip().split("\n\n")
+                   if insight.strip()][:num_sections]
+        
+        return insights
+    except Exception as e:
+        logging.error(f"Error generating insights: {e}")
+        return []
 
 def generate_ppt(topic, num_slides=5, theme="minimalist_blue"):
     """Generate a professional presentation."""
