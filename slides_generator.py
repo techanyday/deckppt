@@ -48,19 +48,25 @@ class GoogleSlidesGenerator:
         
     def get_credentials_from_code(self, code, state=None):
         """Get credentials from OAuth2 callback code."""
-        flow = Flow.from_client_config(
-            self.client_secrets,
-            scopes=SCOPES,
-            state=state
-        )
-        flow.redirect_uri = url_for('oauth2callback', _external=True)
-        
-        # Get credentials from the callback code
-        flow.fetch_token(code=code)
-        credentials = flow.credentials
-        
-        return credentials
-        
+        try:
+            flow = Flow.from_client_config(
+                self.client_secrets,
+                scopes=SCOPES,
+                state=state
+            )
+            flow.redirect_uri = url_for('oauth2callback', _external=True)
+            
+            # Get credentials from the callback code
+            flow.fetch_token(code=code)
+            credentials = flow.credentials
+            
+            logger.info("Successfully obtained credentials from OAuth flow")
+            return credentials
+            
+        except Exception as e:
+            logger.error(f"Error getting credentials from code: {str(e)}")
+            raise
+            
     def init_service(self, credentials):
         """Initialize the Slides service with credentials."""
         try:
