@@ -214,20 +214,30 @@ def oauth2callback():
             return jsonify({"error": "No authorization code received"}), 400
             
         # Get credentials from the authorization code
-        credentials = slides.get_credentials_from_code(code, state)
-        
-        # Store credentials in session
-        session['slides_credentials'] = {
-            'token': credentials.token,
-            'refresh_token': credentials.refresh_token,
-            'token_uri': credentials.token_uri,
-            'client_id': credentials.client_id,
-            'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
-        }
-        
-        return redirect(url_for('index'))
-        
+        try:
+            credentials = slides.get_credentials_from_code(code, state)
+            
+            # Store credentials in session
+            session['slides_credentials'] = {
+                'token': credentials.token,
+                'refresh_token': credentials.refresh_token,
+                'token_uri': credentials.token_uri,
+                'client_id': credentials.client_id,
+                'client_secret': credentials.client_secret,
+                'scopes': credentials.scopes
+            }
+            
+            return redirect(url_for('index'))
+            
+        except Exception as e:
+            app.logger.error(f"Error getting credentials: {str(e)}")
+            # If there's a scope mismatch, try to get a new authorization URL
+            if "Scope has changed" in str(e):
+                auth_url, state = slides.get_authorization_url()
+                session['oauth_state'] = state
+                return redirect(auth_url)
+            raise
+            
     except Exception as e:
         app.logger.error(f"OAuth callback error: {str(e)}")
         return jsonify({"error": str(e)}), 500
