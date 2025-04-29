@@ -232,8 +232,11 @@ class GoogleSlidesGenerator:
             3. Each bullet point should be a complete thought
             4. Content should be factual and professional
             
+            IMPORTANT: Generate EXACTLY the number of sections specified in the user request.
+            Do not generate more or fewer sections than requested.
+            
             Format the response as a JSON array of objects, each with 'title' and 'points' fields.
-            Example:
+            Example for 1 section:
             [
                 {
                     "title": "Market Overview",
@@ -249,7 +252,7 @@ class GoogleSlidesGenerator:
 
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Generate {num_sections} presentation sections about: {topic}"}
+                {"role": "user", "content": f"Generate EXACTLY {num_sections} presentation sections (no more, no less) about: {topic}"}
             ]
 
             max_retries = 3
@@ -278,13 +281,14 @@ class GoogleSlidesGenerator:
                     # Parse the response
                     content_sections = json.loads(content)
                     
-                    # Validate section count
-                    if len(content_sections) < num_sections:
-                        logger.warning(f"Insufficient sections generated on attempt {retry_count + 1}")
+                    # Validate exact section count
+                    if len(content_sections) != num_sections:
+                        logger.warning(f"Wrong number of sections generated (got {len(content_sections)}, expected {num_sections})")
                         retry_count += 1
                         continue
                     
-                    return content_sections[:num_sections]
+                    # No need to slice since we validate exact count
+                    return content_sections
                     
                 except Exception as e:
                     logger.error(f"Error in OpenAI request: {str(e)}")
