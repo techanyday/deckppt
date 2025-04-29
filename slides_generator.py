@@ -72,14 +72,27 @@ class GoogleSlidesGenerator:
             logger.error(f"Error getting credentials from code: {str(e)}")
             raise
             
-    def init_service(self, credentials):
+    def init_service(self, credentials_dict):
         """Initialize the Slides service with credentials."""
         try:
+            # Convert dictionary back to Credentials object
+            credentials = Credentials(
+                token=credentials_dict['token'],
+                refresh_token=credentials_dict['refresh_token'],
+                token_uri=credentials_dict['token_uri'],
+                client_id=credentials_dict['client_id'],
+                client_secret=credentials_dict['client_secret'],
+                scopes=credentials_dict['scopes']
+            )
+            
+            # Build the service
             self.service = build('slides', 'v1', credentials=credentials)
-            return True
+            logger.info("Successfully initialized Slides service")
+            return self.service
+            
         except Exception as e:
-            logger.error(f'Error initializing service: {e}')
-            return False
+            logger.error(f"Error initializing service: {str(e)}")
+            raise
             
     def create_presentation(self, title, num_slides=5, theme="MODERN_BLUE"):
         """Create a new presentation with the specified title and theme."""

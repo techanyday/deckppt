@@ -46,7 +46,8 @@ else:
 
 # Configure upload and download directories
 UPLOAD_FOLDER = os.path.join('static', 'downloads')
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)  # Create directory if it doesn't exist
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Create database tables
 with app.app_context():
@@ -138,69 +139,44 @@ def logout():
 
 @app.route('/generate', methods=['POST'])
 @login_required
-def generate():
-    user = User.query.get(session['user']['id'])
-    topic = request.form.get('topic')
-    num_slides = int(request.form.get('num_slides', 5))
-    theme = request.form.get('theme', 'MODERN_BLUE')
-    
-    if not topic:
-        return jsonify({'error': 'Topic is required'}), 400
-
-    # Check if user can create presentation
-    if not user.can_create_presentation(num_slides):
-        return jsonify({
-            'error': 'Plan limit reached. Please upgrade your plan to continue.',
-            'upgrade_url': url_for('pricing'),
-            'plan_limit': True
-        }), 403
-        
+def generate_presentation():
     try:
-        # Check if we have valid credentials
-        if 'slides_credentials' not in session:
-            # Generate a state token for security
-            state = secrets.token_urlsafe(32)
-            session['oauth_state'] = state
-            
-            # Get the authorization URL
-            auth_url, state = slides.get_authorization_url(state=state)
-            
-            return jsonify({
-                'auth_required': True,
-                'auth_url': auth_url
-            })
+        topic = request.form.get('topic')
+        num_slides = int(request.form.get('num_slides', 5))
         
         # Initialize slides service with stored credentials
+        if 'slides_credentials' not in session:
+            auth_url, state = slides.get_authorization_url()
+            session['oauth_state'] = state
+            return jsonify({"redirect": auth_url})
+            
+        # Initialize the service with stored credentials
         slides.init_service(session['slides_credentials'])
         
-        # Generate presentation
-        presentation_id = slides.create_presentation(topic, num_slides, theme)
-        
-        if not presentation_id:
-            return jsonify({'error': 'Failed to create presentation'}), 500
-            
-        # Create presentation record
-        presentation = Presentation(
-            user_id=user.id,
+        # Generate the presentation
+        presentation_id = slides.create_presentation(
             title=topic,
-            num_slides=num_slides,
-            file_path=presentation_id  # Store presentation ID instead of file path
+            num_slides=num_slides
         )
-        db.session.add(presentation)
         
-        # Update usage metrics
-        user.increment_usage(num_slides)
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'presentation_id': presentation_id,
-            'view_url': f'https://docs.google.com/presentation/d/{presentation_id}/edit'
-        })
-        
+        if presentation_id:
+            return jsonify({
+                "success": True,
+                "message": "Presentation created successfully!",
+                "presentation_url": f"https://docs.google.com/presentation/d/{presentation_id}/edit"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Failed to create presentation. Please try again."
+            })
+            
     except Exception as e:
-        logger.error(f"Error generating presentation: {e}")
-        return jsonify({'error': str(e)}), 500
+        app.logger.error(f"Error generating presentation: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 @app.route('/oauth2callback')
 def oauth2callback():
