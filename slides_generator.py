@@ -224,20 +224,33 @@ class GoogleSlidesGenerator:
             from openai_client import OpenAIClient
             client = OpenAIClient()
             
-            prompt = f"""Create {num_sections} sections for a presentation about "{topic}".
+            prompt = f"""Create {num_sections} detailed sections for a presentation about "{topic}".
             For each section:
-            1. Create a short, clear title
-            2. List 2-3 key bullet points that support or explain that section
+            1. Create a clear, concise title (2-4 words)
+            2. Provide EXACTLY 5 bullet points that are:
+               - Concise (one short phrase or sentence)
+               - Focused on key insights
+               - Clear and informative
+               - Not overly wordy
             
             Format your response exactly like this example (including the quotes):
             [
-                {{"title": "Introduction", "points": ["First key point", "Second key point", "Third key point"]}},
-                {{"title": "Benefits", "points": ["Benefit one", "Benefit two"]}}
+                {{
+                    "title": "Market Overview",
+                    "points": [
+                        "Global market reached $500B in 2024",
+                        "35% annual growth rate expected",
+                        "North America leads adoption at 40%",
+                        "Five major players control 60%",
+                        "Emerging markets show 50% potential"
+                    ]
+                }}
             ]
 
-            Make sure to:
-            - Keep titles concise (1-3 words)
-            - Make bullet points clear and informative
+            Requirements:
+            - Each section MUST have exactly 5 bullet points
+            - Each bullet point should be 5-12 words maximum
+            - Keep content professional and data-driven
             - Use proper JSON formatting with double quotes
             - Include exactly {num_sections} sections"""
             
@@ -264,15 +277,33 @@ class GoogleSlidesGenerator:
                 sections = [
                     {
                         'title': 'Overview',
-                        'points': [f'Introduction to {topic}', 'Key concepts', 'Why it matters']
+                        'points': [
+                            f'Introduction to {topic} and its importance',
+                            'Current market size and growth potential',
+                            'Key industry players and market share',
+                            'Major technological developments',
+                            'Future growth projections and trends'
+                        ]
                     },
                     {
-                        'title': 'Applications',
-                        'points': ['Current use cases', 'Industry examples', 'Success stories']
+                        'title': 'Key Benefits',
+                        'points': [
+                            'Increased operational efficiency and productivity',
+                            'Significant cost reduction and ROI',
+                            'Enhanced customer satisfaction and retention',
+                            'Improved market competitiveness',
+                            'Sustainable long-term growth potential'
+                        ]
                     },
                     {
-                        'title': 'Benefits',
-                        'points': ['Key advantages', 'Value proposition', 'ROI potential']
+                        'title': 'Implementation',
+                        'points': [
+                            'Step-by-step deployment strategy',
+                            'Required resources and timeline',
+                            'Key success factors and metrics',
+                            'Risk mitigation approaches',
+                            'Best practices and guidelines'
+                        ]
                     }
                 ][:num_sections]
             
@@ -280,40 +311,115 @@ class GoogleSlidesGenerator:
             
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
-            # Return default content
             return [
                 {
                     'title': 'Overview',
-                    'points': [f'Introduction to {topic}', 'Key concepts', 'Why it matters']
+                    'points': [
+                        f'Introduction to {topic} and its importance',
+                        'Current market size and growth potential',
+                        'Key industry players and market share',
+                        'Major technological developments',
+                        'Future growth projections and trends'
+                    ]
                 },
                 {
-                    'title': 'Applications',
-                    'points': ['Current use cases', 'Industry examples', 'Success stories']
+                    'title': 'Key Benefits',
+                    'points': [
+                        'Increased operational efficiency and productivity',
+                        'Significant cost reduction and ROI',
+                        'Enhanced customer satisfaction and retention',
+                        'Improved market competitiveness',
+                        'Sustainable long-term growth potential'
+                    ]
                 },
                 {
-                    'title': 'Benefits',
-                    'points': ['Key advantages', 'Value proposition', 'ROI potential']
+                    'title': 'Implementation',
+                    'points': [
+                        'Step-by-step deployment strategy',
+                        'Required resources and timeline',
+                        'Key success factors and metrics',
+                        'Risk mitigation approaches',
+                        'Best practices and guidelines'
+                    ]
                 }
             ][:num_sections]
             
     def _create_content_slides(self, presentation_id, content_sections):
         """Create content slides with insights."""
         try:
+            # Color schemes for rotation
+            color_schemes = [
+                {
+                    'background': {'red': 0.95, 'green': 0.97, 'blue': 1.0},  # Light blue
+                    'title': {'red': 0.0, 'green': 0.4, 'blue': 0.8},  # Deep blue
+                    'text': {'red': 0.2, 'green': 0.2, 'blue': 0.2}  # Dark gray
+                },
+                {
+                    'background': {'red': 0.96, 'green': 1.0, 'blue': 0.96},  # Light green
+                    'title': {'red': 0.0, 'green': 0.6, 'blue': 0.4},  # Teal
+                    'text': {'red': 0.2, 'green': 0.2, 'blue': 0.2}  # Dark gray
+                },
+                {
+                    'background': {'red': 0.98, 'green': 0.95, 'blue': 1.0},  # Soft lavender
+                    'title': {'red': 0.5, 'green': 0.2, 'blue': 0.8},  # Purple
+                    'text': {'red': 0.2, 'green': 0.2, 'blue': 0.2}  # Dark gray
+                }
+            ]
+            
             for i, section in enumerate(content_sections):
-                slide_id = f'slide_{i+1}'
-                title = section['title']
-                points = section['points']
+                # Get color scheme for this slide
+                color_scheme = color_schemes[i % len(color_schemes)]
                 
                 # Create a new slide
+                slide = {
+                    'createSlide': {
+                        'objectId': f'slide_{i+1}',
+                        'slideLayoutReference': {
+                            'predefinedLayout': 'BLANK'
+                        }
+                    }
+                }
+                
+                self.service.presentations().batchUpdate(
+                    presentationId=presentation_id,
+                    body={'requests': [slide]}
+                ).execute()
+                
+                slide_id = f'slide_{i+1}'
+                title = section.get('title', '')
+                points = section.get('points', [])
+                
+                # Create requests for slide elements
                 requests = [
-                    # Add new slide
+                    # Add background shape
                     {
-                        'createSlide': {
-                            'objectId': slide_id,
-                            'insertionIndex': i + 1,  # Skip title slide
-                            'slideLayoutReference': {
-                                'predefinedLayout': 'BLANK'
+                        'createShape': {
+                            'objectId': f'background_{i+1}',
+                            'shapeType': 'RECTANGLE',
+                            'elementProperties': {
+                                'pageObjectId': slide_id,
+                                'size': {
+                                    'width': {'magnitude': 720, 'unit': 'PT'},
+                                    'height': {'magnitude': 405, 'unit': 'PT'}
+                                },
+                                'transform': {
+                                    'scaleX': 1,
+                                    'scaleY': 1,
+                                    'translateX': 0,
+                                    'translateY': 0,
+                                    'unit': 'PT'
+                                }
                             }
+                        }
+                    },
+                    # Style background
+                    {
+                        'updateShapeProperties': {
+                            'objectId': f'background_{i+1}',
+                            'shapeProperties': {
+                                'solidFill': {'color': color_scheme['background']}
+                            },
+                            'fields': 'solidFill'
                         }
                     },
                     # Add title box
@@ -330,8 +436,8 @@ class GoogleSlidesGenerator:
                                 'transform': {
                                     'scaleX': 1,
                                     'scaleY': 1,
-                                    'translateX': 50,
-                                    'translateY': 30,
+                                    'translateX': 35,
+                                    'translateY': 20,
                                     'unit': 'PT'
                                 }
                             }
@@ -344,22 +450,14 @@ class GoogleSlidesGenerator:
                             'text': title
                         }
                     },
-                    # Style the title
+                    # Style title
                     {
                         'updateTextStyle': {
                             'objectId': f'title_{i+1}',
                             'style': {
                                 'fontFamily': 'Roboto',
                                 'fontSize': {'magnitude': 32, 'unit': 'PT'},
-                                'foregroundColor': {
-                                    'opaqueColor': {
-                                        'rgbColor': {
-                                            'red': 0,
-                                            'green': 0.4,
-                                            'blue': 1.0
-                                        }
-                                    }
-                                },
+                                'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['title']}},
                                 'bold': True
                             },
                             'fields': 'fontFamily,fontSize,foregroundColor,bold'
@@ -374,46 +472,57 @@ class GoogleSlidesGenerator:
                                 'pageObjectId': slide_id,
                                 'size': {
                                     'width': {'magnitude': 650, 'unit': 'PT'},
-                                    'height': {'magnitude': 320, 'unit': 'PT'}
+                                    'height': {'magnitude': 280, 'unit': 'PT'}
                                 },
                                 'transform': {
                                     'scaleX': 1,
                                     'scaleY': 1,
-                                    'translateX': 50,
-                                    'translateY': 100,
+                                    'translateX': 35,
+                                    'translateY': 90,
                                     'unit': 'PT'
                                 }
                             }
                         }
-                    },
-                    # Add content text with bullet points
+                    }
+                ]
+                
+                # Add bullet points with proper spacing
+                bullet_text = '\n'.join(f'• {point}' for point in points)
+                requests.extend([
+                    # Add bullet points
                     {
                         'insertText': {
                             'objectId': f'content_{i+1}',
-                            'text': '\n• ' + '\n• '.join(points)
+                            'text': bullet_text
                         }
                     },
-                    # Style the content text
+                    # Style bullet points
                     {
                         'updateTextStyle': {
                             'objectId': f'content_{i+1}',
                             'style': {
                                 'fontFamily': 'Roboto',
-                                'fontSize': {'magnitude': 24, 'unit': 'PT'},
-                                'foregroundColor': {
-                                    'opaqueColor': {
-                                        'rgbColor': {
-                                            'red': 0.2,
-                                            'green': 0.2,
-                                            'blue': 0.2
-                                        }
-                                    }
-                                }
+                                'fontSize': {'magnitude': 20, 'unit': 'PT'},
+                                'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['text']}},
+                                'spacingMode': 'SPACING_MODE_FIXED',
+                                'lineSpacing': 150  # 1.5 line spacing
                             },
-                            'fields': 'fontFamily,fontSize,foregroundColor'
+                            'fields': 'fontFamily,fontSize,foregroundColor,spacingMode,lineSpacing'
+                        }
+                    },
+                    # Add paragraph spacing
+                    {
+                        'updateParagraphStyle': {
+                            'objectId': f'content_{i+1}',
+                            'style': {
+                                'lineSpacing': 150,
+                                'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
+                                'spaceBelow': {'magnitude': 10, 'unit': 'PT'}
+                            },
+                            'fields': 'lineSpacing,spaceAbove,spaceBelow'
                         }
                     }
-                ]
+                ])
                 
                 # Execute the requests
                 self.service.presentations().batchUpdate(
