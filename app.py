@@ -142,6 +142,12 @@ def logout():
 def generate_presentation():
     try:
         topic = request.form.get('topic')
+        if not topic:
+            return jsonify({
+                "success": False,
+                "message": "Please provide a topic for the presentation."
+            }), 400
+            
         num_slides = int(request.form.get('num_slides', 5))
         
         # Initialize slides service with stored credentials
@@ -160,22 +166,29 @@ def generate_presentation():
         )
         
         if presentation_id:
+            presentation_url = f"https://docs.google.com/presentation/d/{presentation_id}/edit"
             return jsonify({
                 "success": True,
-                "message": "Presentation created successfully!",
-                "presentation_url": f"https://docs.google.com/presentation/d/{presentation_id}/edit"
+                "message": "Presentation created successfully! Click the button below to view it.",
+                "presentation_url": presentation_url
             })
         else:
             return jsonify({
                 "success": False,
                 "message": "Failed to create presentation. Please try again."
-            })
+            }), 500
             
+    except ValueError as e:
+        app.logger.error(f"Validation error: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 400
     except Exception as e:
         app.logger.error(f"Error generating presentation: {str(e)}")
         return jsonify({
             "success": False,
-            "message": str(e)
+            "message": "An unexpected error occurred. Please try again."
         }), 500
 
 @app.route('/oauth2callback')

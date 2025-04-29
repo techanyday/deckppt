@@ -224,49 +224,75 @@ class GoogleSlidesGenerator:
             from openai_client import OpenAIClient
             client = OpenAIClient()
             
-            prompt = f"""Generate {num_sections} detailed sections about {topic}.
-            For each section, provide:
-            1. A clear title (1-3 words)
-            2. 2-3 bullet points of supporting information
+            prompt = f"""Create {num_sections} sections for a presentation about "{topic}".
+            For each section:
+            1. Create a short, clear title
+            2. List 2-3 key bullet points that support or explain that section
             
-            Format the response as a Python list of dictionaries, where each dictionary has:
-            - 'title': The section title
-            - 'points': A list of bullet points
-            
-            Example format:
+            Format your response exactly like this example (including the quotes):
             [
-                {{'title': 'Current Applications', 'points': ['Point 1', 'Point 2', 'Point 3']}},
-                {{'title': 'Key Benefits', 'points': ['Point 1', 'Point 2']}}
-            ]"""
+                {{"title": "Introduction", "points": ["First key point", "Second key point", "Third key point"]}},
+                {{"title": "Benefits", "points": ["Benefit one", "Benefit two"]}}
+            ]
+
+            Make sure to:
+            - Keep titles concise (1-3 words)
+            - Make bullet points clear and informative
+            - Use proper JSON formatting with double quotes
+            - Include exactly {num_sections} sections"""
             
             response = client.generate(prompt)
             
-            # Safely evaluate the response as a Python literal
-            import ast
-            try:
-                sections = ast.literal_eval(response)
-            except:
-                # If parsing fails, try to clean up the response
-                cleaned = response.replace('```python', '').replace('```', '').strip()
-                sections = ast.literal_eval(cleaned)
+            # Clean up the response
+            response = response.strip()
+            if response.startswith('```python'):
+                response = response.replace('```python', '').replace('```', '').strip()
+            if response.startswith('```json'):
+                response = response.replace('```json', '').replace('```', '').strip()
+                
+            # Handle single quotes
+            response = response.replace("'", '"')
             
-            return sections[:num_sections]
+            # Safely evaluate the response
+            import json
+            try:
+                sections = json.loads(response)
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing JSON: {str(e)}")
+                logger.error(f"Response was: {response}")
+                # Use default content as fallback
+                sections = [
+                    {
+                        'title': 'Overview',
+                        'points': [f'Introduction to {topic}', 'Key concepts', 'Why it matters']
+                    },
+                    {
+                        'title': 'Applications',
+                        'points': ['Current use cases', 'Industry examples', 'Success stories']
+                    },
+                    {
+                        'title': 'Benefits',
+                        'points': ['Key advantages', 'Value proposition', 'ROI potential']
+                    }
+                ][:num_sections]
+            
+            return sections
             
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
-            # Return some default content if generation fails
+            # Return default content
             return [
                 {
-                    'title': f'Key Insights: {topic}',
-                    'points': ['Understanding the fundamentals', 'Current state of technology', 'Future implications']
+                    'title': 'Overview',
+                    'points': [f'Introduction to {topic}', 'Key concepts', 'Why it matters']
                 },
                 {
                     'title': 'Applications',
-                    'points': ['Real-world use cases', 'Industry adoption', 'Success stories']
+                    'points': ['Current use cases', 'Industry examples', 'Success stories']
                 },
                 {
                     'title': 'Benefits',
-                    'points': ['Improved efficiency', 'Cost savings', 'Enhanced capabilities']
+                    'points': ['Key advantages', 'Value proposition', 'ROI potential']
                 }
             ][:num_sections]
             
