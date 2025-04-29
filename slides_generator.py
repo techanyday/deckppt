@@ -416,12 +416,15 @@ class GoogleSlidesGenerator:
                     {
                         'updateShapeProperties': {
                             'objectId': f'background_{i+1}',
+                            'fields': '*',
                             'shapeProperties': {
-                                'solidFill': {
-                                    'color': {'rgbColor': color_scheme['background']}
+                                'outline': {'propertyState': 'NOT_RENDERED'},
+                                'shapeBackgroundFill': {
+                                    'solidFill': {
+                                        'color': {'rgbColor': color_scheme['background']}
+                                    }
                                 }
-                            },
-                            'fields': 'solidFill'
+                            }
                         }
                     },
                     # Add title box
@@ -442,6 +445,17 @@ class GoogleSlidesGenerator:
                                     'translateY': 20,
                                     'unit': 'PT'
                                 }
+                            }
+                        }
+                    },
+                    # Style title box
+                    {
+                        'updateShapeProperties': {
+                            'objectId': f'title_{i+1}',
+                            'fields': '*',
+                            'shapeProperties': {
+                                'outline': {'propertyState': 'NOT_RENDERED'},
+                                'shapeBackgroundFill': {'propertyState': 'NOT_RENDERED'}
                             }
                         }
                     },
@@ -483,6 +497,17 @@ class GoogleSlidesGenerator:
                                     'translateY': 90,
                                     'unit': 'PT'
                                 }
+                            }
+                        }
+                    },
+                    # Style content box
+                    {
+                        'updateShapeProperties': {
+                            'objectId': f'content_{i+1}',
+                            'fields': '*',
+                            'shapeProperties': {
+                                'outline': {'propertyState': 'NOT_RENDERED'},
+                                'shapeBackgroundFill': {'propertyState': 'NOT_RENDERED'}
                             }
                         }
                     }
