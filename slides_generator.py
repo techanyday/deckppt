@@ -417,13 +417,11 @@ class GoogleSlidesGenerator:
                         'updateShapeProperties': {
                             'objectId': f'background_{i+1}',
                             'shapeProperties': {
-                                'fillProperties': {
-                                    'solidFill': {
-                                        'color': {'rgbColor': color_scheme['background']}
-                                    }
+                                'solidFill': {
+                                    'color': {'rgbColor': color_scheme['background']}
                                 }
                             },
-                            'fields': 'fillProperties'
+                            'fields': 'solidFill'
                         }
                     },
                     # Add title box
@@ -517,10 +515,14 @@ class GoogleSlidesGenerator:
                         'updateParagraphStyle': {
                             'objectId': f'content_{i+1}',
                             'style': {
-                                'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
-                                'spaceBelow': {'magnitude': 10, 'unit': 'PT'}
+                                'spaceAbove': {'magnitude': 12, 'unit': 'PT'},
+                                'spaceBelow': {'magnitude': 12, 'unit': 'PT'},
+                                'indentStart': {'magnitude': 20, 'unit': 'PT'},
+                                'indentFirstLine': {'magnitude': -20, 'unit': 'PT'},
+                                'alignment': 'START',
+                                'direction': 'LEFT_TO_RIGHT'
                             },
-                            'fields': 'spaceAbove,spaceBelow'
+                            'fields': 'spaceAbove,spaceBelow,indentStart,indentFirstLine,alignment,direction'
                         }
                     }
                 ])
