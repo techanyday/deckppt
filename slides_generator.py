@@ -417,9 +417,13 @@ class GoogleSlidesGenerator:
                         'updateShapeProperties': {
                             'objectId': f'background_{i+1}',
                             'shapeProperties': {
-                                'solidFill': {'color': color_scheme['background']}
+                                'fillProperties': {
+                                    'solidFill': {
+                                        'color': {'rgbColor': color_scheme['background']}
+                                    }
+                                }
                             },
-                            'fields': 'solidFill'
+                            'fields': 'fillProperties'
                         }
                     },
                     # Add title box
@@ -503,11 +507,9 @@ class GoogleSlidesGenerator:
                             'style': {
                                 'fontFamily': 'Roboto',
                                 'fontSize': {'magnitude': 20, 'unit': 'PT'},
-                                'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['text']}},
-                                'spacingMode': 'SPACING_MODE_FIXED',
-                                'lineSpacing': 150  # 1.5 line spacing
+                                'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['text']}}
                             },
-                            'fields': 'fontFamily,fontSize,foregroundColor,spacingMode,lineSpacing'
+                            'fields': 'fontFamily,fontSize,foregroundColor'
                         }
                     },
                     # Add paragraph spacing
@@ -515,11 +517,10 @@ class GoogleSlidesGenerator:
                         'updateParagraphStyle': {
                             'objectId': f'content_{i+1}',
                             'style': {
-                                'lineSpacing': 150,
                                 'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
                                 'spaceBelow': {'magnitude': 10, 'unit': 'PT'}
                             },
-                            'fields': 'lineSpacing,spaceAbove,spaceBelow'
+                            'fields': 'spaceAbove,spaceBelow'
                         }
                     }
                 ])
