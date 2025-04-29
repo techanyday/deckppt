@@ -224,40 +224,61 @@ class GoogleSlidesGenerator:
             from openai_client import OpenAIClient
             client = OpenAIClient()
             
-            prompt = f"""Generate {num_sections} key points about {topic}.
-            Each point should be informative and insightful.
-            Format as a Python list of strings.
-            Each point should be 1-2 sentences long."""
+            prompt = f"""Generate {num_sections} detailed sections about {topic}.
+            For each section, provide:
+            1. A clear title (1-3 words)
+            2. 2-3 bullet points of supporting information
+            
+            Format the response as a Python list of dictionaries, where each dictionary has:
+            - 'title': The section title
+            - 'points': A list of bullet points
+            
+            Example format:
+            [
+                {{'title': 'Current Applications', 'points': ['Point 1', 'Point 2', 'Point 3']}},
+                {{'title': 'Key Benefits', 'points': ['Point 1', 'Point 2']}}
+            ]"""
             
             response = client.generate(prompt)
             
-            # Parse the response into a list
-            # Remove list markers and clean up the text
-            points = [
-                point.strip().lstrip('*-').strip()
-                for point in response.split('\n')
-                if point.strip() and not point.strip().isspace()
-            ]
+            # Safely evaluate the response as a Python literal
+            import ast
+            try:
+                sections = ast.literal_eval(response)
+            except:
+                # If parsing fails, try to clean up the response
+                cleaned = response.replace('```python', '').replace('```', '').strip()
+                sections = ast.literal_eval(cleaned)
             
-            return points[:num_sections]  # Ensure we only return requested number of points
+            return sections[:num_sections]
             
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
             # Return some default content if generation fails
             return [
-                f"Key insights about {topic}",
-                "Impact on modern technology",
-                "Future developments",
-                "Current applications",
-                "Benefits and challenges"
+                {
+                    'title': f'Key Insights: {topic}',
+                    'points': ['Understanding the fundamentals', 'Current state of technology', 'Future implications']
+                },
+                {
+                    'title': 'Applications',
+                    'points': ['Real-world use cases', 'Industry adoption', 'Success stories']
+                },
+                {
+                    'title': 'Benefits',
+                    'points': ['Improved efficiency', 'Cost savings', 'Enhanced capabilities']
+                }
             ][:num_sections]
             
     def _create_content_slides(self, presentation_id, content_sections):
         """Create content slides with insights."""
         try:
-            for i, content in enumerate(content_sections):
-                # Create a new slide
+            for i, section in enumerate(content_sections):
                 slide_id = f'slide_{i+1}'
+                title = section['title']
+                points = section['points']
+                
+                # Create a new slide
                 requests = [
                     # Add new slide
                     {
@@ -267,6 +288,55 @@ class GoogleSlidesGenerator:
                             'slideLayoutReference': {
                                 'predefinedLayout': 'BLANK'
                             }
+                        }
+                    },
+                    # Add title box
+                    {
+                        'createShape': {
+                            'objectId': f'title_{i+1}',
+                            'shapeType': 'RECTANGLE',
+                            'elementProperties': {
+                                'pageObjectId': slide_id,
+                                'size': {
+                                    'width': {'magnitude': 650, 'unit': 'PT'},
+                                    'height': {'magnitude': 50, 'unit': 'PT'}
+                                },
+                                'transform': {
+                                    'scaleX': 1,
+                                    'scaleY': 1,
+                                    'translateX': 50,
+                                    'translateY': 30,
+                                    'unit': 'PT'
+                                }
+                            }
+                        }
+                    },
+                    # Add title text
+                    {
+                        'insertText': {
+                            'objectId': f'title_{i+1}',
+                            'text': title
+                        }
+                    },
+                    # Style the title
+                    {
+                        'updateTextStyle': {
+                            'objectId': f'title_{i+1}',
+                            'style': {
+                                'fontFamily': 'Roboto',
+                                'fontSize': {'magnitude': 32, 'unit': 'PT'},
+                                'foregroundColor': {
+                                    'opaqueColor': {
+                                        'rgbColor': {
+                                            'red': 0,
+                                            'green': 0.4,
+                                            'blue': 1.0
+                                        }
+                                    }
+                                },
+                                'bold': True
+                            },
+                            'fields': 'fontFamily,fontSize,foregroundColor,bold'
                         }
                     },
                     # Add content box
@@ -284,17 +354,17 @@ class GoogleSlidesGenerator:
                                     'scaleX': 1,
                                     'scaleY': 1,
                                     'translateX': 50,
-                                    'translateY': 50,
+                                    'translateY': 100,
                                     'unit': 'PT'
                                 }
                             }
                         }
                     },
-                    # Add content text
+                    # Add content text with bullet points
                     {
                         'insertText': {
                             'objectId': f'content_{i+1}',
-                            'text': content
+                            'text': '\n• ' + '\n• '.join(points)
                         }
                     },
                     # Style the content text
