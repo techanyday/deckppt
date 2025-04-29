@@ -204,17 +204,16 @@ def generate():
 
 @app.route('/oauth2callback')
 def oauth2callback():
-    """Handle the OAuth2 callback from Google Slides API."""
     try:
-        # Verify state to prevent CSRF
-        state = request.args.get('state')
-        stored_state = session.pop('oauth_state', None)
-        
-        if not state or state != stored_state:
-            return jsonify({'error': 'Invalid state parameter'}), 400
-            
-        # Get credentials from callback code
+        # Get the authorization code from the callback
         code = request.args.get('code')
+        state = request.args.get('state')
+        
+        if not code:
+            app.logger.error("No code received in callback")
+            return jsonify({"error": "No authorization code received"}), 400
+            
+        # Get credentials from the authorization code
         credentials = slides.get_credentials_from_code(code, state)
         
         # Store credentials in session
@@ -230,8 +229,8 @@ def oauth2callback():
         return redirect(url_for('index'))
         
     except Exception as e:
-        logger.error(f"Error in OAuth callback: {e}")
-        return jsonify({'error': 'Authentication failed'}), 500
+        app.logger.error(f"OAuth callback error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/download/<filename>')
 @login_required
@@ -343,6 +342,14 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.utcnow().isoformat()
         }), 503
+
+@app.route('/privacy')
+def privacy_policy():
+    return render_template('privacy.html', now=datetime.now())
+
+@app.route('/terms')
+def terms_of_service():
+    return render_template('terms.html', now=datetime.now())
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

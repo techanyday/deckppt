@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container my-5">
+    <h1>Privacy Policy</h1>
+    <p class="lead">Last updated: {{ now.strftime('%B %d, %Y') }}</p>
+
+    <section class="my-4">
+        <h2>1. Information We Collect</h2>
+        <p>When you use Deck, we collect:</p>
+        <ul>
+            <li>Google account information when you authorize our application</li>
+            <li>Information about the presentations you create</li>
+            <li>Usage data to improve our service</li>
+        </ul>
+    </section>
+
+    <section class="my-4">
+        <h2>2. How We Use Your Information</h2>
+        <p>We use your information to:</p>
+        <ul>
+            <li>Create and manage presentations on your behalf</li>
+            <li>Improve our presentation generation service</li>
+            <li>Communicate with you about our service</li>
+        </ul>
+    </section>
+
+    <section class="my-4">
+        <h2>3. Data Security</h2>
+        <p>We implement appropriate security measures to protect your data. Your presentations are created using secure connections, and we do not store presentation content on our servers.</p>
+    </section>
+
+    <section class="my-4">
+        <h2>4. Third-Party Services</h2>
+        <p>We use Google Slides API to create presentations. When you use our service, you're also subject to Google's privacy policies.</p>
+    </section>
+
+    <section class="my-4">
+        <h2>5. Contact Us</h2>
+        <p>If you have questions about this Privacy Policy, please contact us at: lawrencekarthur@gmail.com</p>
+    </section>
+</div>
+{% endblock %}
