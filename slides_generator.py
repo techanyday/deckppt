@@ -221,8 +221,9 @@ class GoogleSlidesGenerator:
     def _generate_content_sections(self, topic, num_sections):
         """Generate content sections using OpenAI."""
         try:
-            from openai_client import OpenAIClient
-            client = OpenAIClient()
+            # Get OpenAI client
+            from openai import OpenAI
+            client = OpenAI()
             
             system_prompt = """You are a presentation content generator. Create informative and engaging content for a presentation.
             Each section should have:
@@ -294,10 +295,9 @@ class GoogleSlidesGenerator:
             raise Exception("Failed to generate valid content after multiple attempts")
             
         except Exception as e:
-            logger.error(f"Error parsing JSON: {str(e)}")
-            logger.error(f"Response was: {content}")
+            logger.error(f"Error generating content: {str(e)}")
             raise
-            
+
     def _validate_json_response(self, response_text):
         """Validate if the JSON response is complete and well-formed."""
         try:
