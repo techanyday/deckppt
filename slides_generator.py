@@ -218,12 +218,115 @@ class GoogleSlidesGenerator:
         # Implementation similar to title slide but with different layout
         pass
         
+    def _generate_content_sections(self, topic, num_sections):
+        """Generate content sections using OpenAI."""
+        try:
+            from openai_client import OpenAIClient
+            client = OpenAIClient()
+            
+            prompt = f"""Generate {num_sections} key points about {topic}.
+            Each point should be informative and insightful.
+            Format as a Python list of strings.
+            Each point should be 1-2 sentences long."""
+            
+            response = client.generate(prompt)
+            
+            # Parse the response into a list
+            # Remove list markers and clean up the text
+            points = [
+                point.strip().lstrip('*-').strip()
+                for point in response.split('\n')
+                if point.strip() and not point.strip().isspace()
+            ]
+            
+            return points[:num_sections]  # Ensure we only return requested number of points
+            
+        except Exception as e:
+            logger.error(f"Error generating content: {str(e)}")
+            # Return some default content if generation fails
+            return [
+                f"Key insights about {topic}",
+                "Impact on modern technology",
+                "Future developments",
+                "Current applications",
+                "Benefits and challenges"
+            ][:num_sections]
+            
     def _create_content_slides(self, presentation_id, content_sections):
         """Create content slides with insights."""
-        # Implementation for content slides with modern design
-        pass
-        
-    def _generate_content_sections(self, topic, num_sections):
-        """Generate content sections using existing OpenAI integration."""
-        # Reuse existing content generation logic
-        pass
+        try:
+            for i, content in enumerate(content_sections):
+                # Create a new slide
+                slide_id = f'slide_{i+1}'
+                requests = [
+                    # Add new slide
+                    {
+                        'createSlide': {
+                            'objectId': slide_id,
+                            'insertionIndex': i + 1,  # Skip title slide
+                            'slideLayoutReference': {
+                                'predefinedLayout': 'BLANK'
+                            }
+                        }
+                    },
+                    # Add content box
+                    {
+                        'createShape': {
+                            'objectId': f'content_{i+1}',
+                            'shapeType': 'RECTANGLE',
+                            'elementProperties': {
+                                'pageObjectId': slide_id,
+                                'size': {
+                                    'width': {'magnitude': 650, 'unit': 'PT'},
+                                    'height': {'magnitude': 320, 'unit': 'PT'}
+                                },
+                                'transform': {
+                                    'scaleX': 1,
+                                    'scaleY': 1,
+                                    'translateX': 50,
+                                    'translateY': 50,
+                                    'unit': 'PT'
+                                }
+                            }
+                        }
+                    },
+                    # Add content text
+                    {
+                        'insertText': {
+                            'objectId': f'content_{i+1}',
+                            'text': content
+                        }
+                    },
+                    # Style the content text
+                    {
+                        'updateTextStyle': {
+                            'objectId': f'content_{i+1}',
+                            'style': {
+                                'fontFamily': 'Roboto',
+                                'fontSize': {'magnitude': 24, 'unit': 'PT'},
+                                'foregroundColor': {
+                                    'opaqueColor': {
+                                        'rgbColor': {
+                                            'red': 0.2,
+                                            'green': 0.2,
+                                            'blue': 0.2
+                                        }
+                                    }
+                                }
+                            },
+                            'fields': 'fontFamily,fontSize,foregroundColor'
+                        }
+                    }
+                ]
+                
+                # Execute the requests
+                self.service.presentations().batchUpdate(
+                    presentationId=presentation_id,
+                    body={'requests': requests}
+                ).execute()
+                
+            logger.info(f"Created {len(content_sections)} content slides")
+            
+        except Exception as e:
+            logger.error(f"Error creating content slides: {str(e)}")
+            raise
