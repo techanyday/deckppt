@@ -224,126 +224,95 @@ class GoogleSlidesGenerator:
             from openai_client import OpenAIClient
             client = OpenAIClient()
             
-            prompt = f"""Create {num_sections} detailed sections for a presentation about "{topic}".
-            For each section:
-            1. Create a clear, concise title (2-4 words)
-            2. Provide EXACTLY 5 bullet points that are:
-               - Concise (one short phrase or sentence)
-               - Focused on key insights
-               - Clear and informative
-               - Not overly wordy
+            system_prompt = """You are a presentation content generator. Create informative and engaging content for a presentation.
+            Each section should have:
+            1. A clear, concise title
+            2. Exactly 5 bullet points that are 5-12 words each
+            3. Each bullet point should be a complete thought
+            4. Content should be factual and professional
             
-            Format your response exactly like this example (including the quotes):
+            Format the response as a JSON array of objects, each with 'title' and 'points' fields.
+            Example:
             [
-                {{
+                {
                     "title": "Market Overview",
                     "points": [
-                        "Global market reached $500B in 2024",
-                        "35% annual growth rate expected",
-                        "North America leads adoption at 40%",
-                        "Five major players control 60%",
-                        "Emerging markets show 50% potential"
-                    ]
-                }}
-            ]
-
-            Requirements:
-            - Each section MUST have exactly 5 bullet points
-            - Each bullet point should be 5-12 words maximum
-            - Keep content professional and data-driven
-            - Use proper JSON formatting with double quotes
-            - Include exactly {num_sections} sections"""
-            
-            response = client.generate(prompt)
-            
-            # Clean up the response
-            response = response.strip()
-            if response.startswith('```python'):
-                response = response.replace('```python', '').replace('```', '').strip()
-            if response.startswith('```json'):
-                response = response.replace('```json', '').replace('```', '').strip()
-                
-            # Handle single quotes
-            response = response.replace("'", '"')
-            
-            # Safely evaluate the response
-            import json
-            try:
-                sections = json.loads(response)
-            except json.JSONDecodeError as e:
-                logger.error(f"Error parsing JSON: {str(e)}")
-                logger.error(f"Response was: {response}")
-                # Use default content as fallback
-                sections = [
-                    {
-                        'title': 'Overview',
-                        'points': [
-                            f'Introduction to {topic} and its importance',
-                            'Current market size and growth potential',
-                            'Key industry players and market share',
-                            'Major technological developments',
-                            'Future growth projections and trends'
-                        ]
-                    },
-                    {
-                        'title': 'Key Benefits',
-                        'points': [
-                            'Increased operational efficiency and productivity',
-                            'Significant cost reduction and ROI',
-                            'Enhanced customer satisfaction and retention',
-                            'Improved market competitiveness',
-                            'Sustainable long-term growth potential'
-                        ]
-                    },
-                    {
-                        'title': 'Implementation',
-                        'points': [
-                            'Step-by-step deployment strategy',
-                            'Required resources and timeline',
-                            'Key success factors and metrics',
-                            'Risk mitigation approaches',
-                            'Best practices and guidelines'
-                        ]
-                    }
-                ][:num_sections]
-            
-            return sections
-            
-        except Exception as e:
-            logger.error(f"Error generating content: {str(e)}")
-            return [
-                {
-                    'title': 'Overview',
-                    'points': [
-                        f'Introduction to {topic} and its importance',
-                        'Current market size and growth potential',
-                        'Key industry players and market share',
-                        'Major technological developments',
-                        'Future growth projections and trends'
-                    ]
-                },
-                {
-                    'title': 'Key Benefits',
-                    'points': [
-                        'Increased operational efficiency and productivity',
-                        'Significant cost reduction and ROI',
-                        'Enhanced customer satisfaction and retention',
-                        'Improved market competitiveness',
-                        'Sustainable long-term growth potential'
-                    ]
-                },
-                {
-                    'title': 'Implementation',
-                    'points': [
-                        'Step-by-step deployment strategy',
-                        'Required resources and timeline',
-                        'Key success factors and metrics',
-                        'Risk mitigation approaches',
-                        'Best practices and guidelines'
+                        "Global market expected to reach $500B by 2025",
+                        "North America leads with 35% market share",
+                        "Asia Pacific showing fastest growth rate of 12%",
+                        "Top three players control 45% of market",
+                        "New entrants focus on innovative technologies"
                     ]
                 }
-            ][:num_sections]
+            ]"""
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Generate {num_sections} presentation sections about: {topic}"}
+            ]
+
+            max_retries = 3
+            retry_count = 0
             
+            while retry_count < max_retries:
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-3.5-turbo",
+                        messages=messages,
+                        temperature=0.7,
+                        max_tokens=1000,  # Increased from default
+                        top_p=0.9,
+                        frequency_penalty=0.2,
+                        presence_penalty=0.2
+                    )
+                    
+                    content = response.choices[0].message.content
+                    
+                    # Validate JSON response
+                    if not self._validate_json_response(content):
+                        logger.warning(f"Invalid JSON response on attempt {retry_count + 1}")
+                        retry_count += 1
+                        continue
+                    
+                    # Parse the response
+                    content_sections = json.loads(content)
+                    
+                    # Validate section count
+                    if len(content_sections) < num_sections:
+                        logger.warning(f"Insufficient sections generated on attempt {retry_count + 1}")
+                        retry_count += 1
+                        continue
+                    
+                    return content_sections[:num_sections]
+                    
+                except Exception as e:
+                    logger.error(f"Error in OpenAI request: {str(e)}")
+                    retry_count += 1
+                    if retry_count == max_retries:
+                        raise Exception("Failed to generate valid content after multiple attempts")
+                    
+            raise Exception("Failed to generate valid content after multiple attempts")
+            
+        except Exception as e:
+            logger.error(f"Error parsing JSON: {str(e)}")
+            logger.error(f"Response was: {content}")
+            raise
+            
+    def _validate_json_response(self, response_text):
+        """Validate if the JSON response is complete and well-formed."""
+        try:
+            # Check if response ends with proper JSON closure
+            if not response_text.strip().endswith(']'):
+                logger.error("Incomplete JSON response")
+                return False
+            
+            # Try parsing the JSON
+            json.loads(response_text)
+            return True
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON: {str(e)}")
+            return False
+
     def _create_content_slides(self, presentation_id, content_sections):
         """Create content slides with insights."""
         try:
@@ -416,9 +385,8 @@ class GoogleSlidesGenerator:
                     {
                         'updateShapeProperties': {
                             'objectId': f'background_{i+1}',
-                            'fields': '*',
+                            'fields': 'shapeBackgroundFill.solidFill.color',
                             'shapeProperties': {
-                                'outline': {'propertyState': 'NOT_RENDERED'},
                                 'shapeBackgroundFill': {
                                     'solidFill': {
                                         'color': {'rgbColor': color_scheme['background']}
@@ -452,7 +420,7 @@ class GoogleSlidesGenerator:
                     {
                         'updateShapeProperties': {
                             'objectId': f'title_{i+1}',
-                            'fields': '*',
+                            'fields': 'outline.propertyState,shapeBackgroundFill.propertyState',
                             'shapeProperties': {
                                 'outline': {'propertyState': 'NOT_RENDERED'},
                                 'shapeBackgroundFill': {'propertyState': 'NOT_RENDERED'}
@@ -470,13 +438,13 @@ class GoogleSlidesGenerator:
                     {
                         'updateTextStyle': {
                             'objectId': f'title_{i+1}',
+                            'fields': 'fontFamily,fontSize,foregroundColor,bold',
                             'style': {
                                 'fontFamily': 'Roboto',
                                 'fontSize': {'magnitude': 32, 'unit': 'PT'},
                                 'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['title']}},
                                 'bold': True
-                            },
-                            'fields': 'fontFamily,fontSize,foregroundColor,bold'
+                            }
                         }
                     },
                     # Add content box
@@ -504,7 +472,7 @@ class GoogleSlidesGenerator:
                     {
                         'updateShapeProperties': {
                             'objectId': f'content_{i+1}',
-                            'fields': '*',
+                            'fields': 'outline.propertyState,shapeBackgroundFill.propertyState',
                             'shapeProperties': {
                                 'outline': {'propertyState': 'NOT_RENDERED'},
                                 'shapeBackgroundFill': {'propertyState': 'NOT_RENDERED'}
@@ -527,18 +495,19 @@ class GoogleSlidesGenerator:
                     {
                         'updateTextStyle': {
                             'objectId': f'content_{i+1}',
+                            'fields': 'fontFamily,fontSize,foregroundColor',
                             'style': {
                                 'fontFamily': 'Roboto',
                                 'fontSize': {'magnitude': 20, 'unit': 'PT'},
                                 'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['text']}}
-                            },
-                            'fields': 'fontFamily,fontSize,foregroundColor'
+                            }
                         }
                     },
                     # Add paragraph spacing
                     {
                         'updateParagraphStyle': {
                             'objectId': f'content_{i+1}',
+                            'fields': 'spaceAbove,spaceBelow,indentStart,indentFirstLine,alignment,direction',
                             'style': {
                                 'spaceAbove': {'magnitude': 12, 'unit': 'PT'},
                                 'spaceBelow': {'magnitude': 12, 'unit': 'PT'},
@@ -546,8 +515,7 @@ class GoogleSlidesGenerator:
                                 'indentFirstLine': {'magnitude': -20, 'unit': 'PT'},
                                 'alignment': 'START',
                                 'direction': 'LEFT_TO_RIGHT'
-                            },
-                            'fields': 'spaceAbove,spaceBelow,indentStart,indentFirstLine,alignment,direction'
+                            }
                         }
                     }
                 ])
