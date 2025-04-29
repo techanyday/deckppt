@@ -39,7 +39,10 @@ if os.environ.get('PAYSTACK_SECRET_KEY'):
     paystack = PaystackService()
 else:
     paystack = None  # Skip Paystack for local development
-slides = GoogleSlidesGenerator('slides_credentials.json')
+if os.environ.get('GOOGLE_SLIDES_CREDENTIALS'):
+    slides = GoogleSlidesGenerator()  # Will use env vars
+else:
+    slides = GoogleSlidesGenerator('slides_credentials.json')  # Will use local file
 
 # Configure upload and download directories
 UPLOAD_FOLDER = os.path.join('static', 'downloads')
