@@ -169,7 +169,7 @@ def generate_presentation():
             presentation_url = f"https://docs.google.com/presentation/d/{presentation_id}/edit"
             return jsonify({
                 "success": True,
-                "message": "Presentation created successfully! Click the button below to view it.",
+                "message": "Presentation created successfully!",
                 "presentation_url": presentation_url
             })
         else:
