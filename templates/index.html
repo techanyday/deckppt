@@ -133,7 +133,7 @@
         {% endif %}
 
         <div class="form-container">
-            <form action="{{ url_for('generate') }}" method="POST" id="generateForm">
+            <form action="{{ url_for('generate_presentation') }}" method="POST" id="generateForm">
                 <div class="mb-3">
                     <label for="topic" class="form-label">Enter a title or a prompt</label>
                     <input type="text" class="form-control" id="topic" name="topic" required
@@ -167,9 +167,7 @@
                     </div>
                 </div>
 
-                <button type="button" class="btn btn-primary w-100" id="generateBtn" onclick="generatePresentation()">
-                    Generate Presentation
-                </button>
+                <button type="submit" class="btn btn-primary w-100">Generate Presentation</button>
             </form>
         </div>
 
@@ -196,52 +194,61 @@
     </div>
 
     <script>
-        async function generatePresentation() {
-            const topic = document.getElementById('topic').value;
-            const numSlides = document.getElementById('num_slides').value;
-            const theme = document.getElementById('theme').value;
+        document.getElementById('generateForm').addEventListener('submit', function(e) {
+            e.preventDefault();
             
-            try {
-                const response = await fetch('/generate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        topic: topic,
-                        num_slides: numSlides,
-                        theme: theme
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.auth_required) {
-                    // Redirect to Google OAuth
-                    window.location.href = data.auth_url;
-                    return;
-                }
-                
+            // Show loading state
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Generating...';
+            
+            fetch(this.action, {
+                method: 'POST',
+                body: new FormData(this)
+            })
+            .then(response => response.json())
+            .then(data => {
                 if (data.success) {
-                    // Show success message with link to presentation
-                    Swal.fire({
-                        title: 'Success!',
-                        html: `Your presentation has been created!<br><br>
-                              <a href="${data.view_url}" target="_blank" class="btn btn-primary">
-                                Open in Google Slides
-                              </a>`,
-                        icon: 'success'
-                    });
+                    // Show success message
+                    showAlert('success', data.message);
+                    // Open the presentation in a new tab
+                    window.open(data.presentation_url, '_blank');
+                } else if (data.redirect) {
+                    // Handle OAuth redirect
+                    window.location.href = data.redirect;
                 } else {
-                    throw new Error(data.error || 'Failed to generate presentation');
+                    // Show error message
+                    showAlert('danger', data.message || 'An error occurred. Please try again.');
                 }
-            } catch (error) {
-                Swal.fire({
-                    title: 'Error',
-                    text: error.message,
-                    icon: 'error'
-                });
-            }
+            })
+            .catch(error => {
+                showAlert('danger', 'An unexpected error occurred. Please try again.');
+                console.error('Error:', error);
+            })
+            .finally(() => {
+                // Reset button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            });
+        });
+
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            
+            // Insert alert before the form
+            const form = document.getElementById('generateForm');
+            form.parentNode.insertBefore(alertDiv, form);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
         }
     </script>
 </body>
