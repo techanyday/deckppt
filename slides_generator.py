@@ -226,9 +226,7 @@ class GoogleSlidesGenerator:
             }
         }
         text_color = {
-            'solidFill': {
-                'color': self.theme['colors']['primary']['solid']['color']
-            }
+            'opaqueColor': self.theme['colors']['primary']['solid']['color']
         }
 
         requests = [{
@@ -275,7 +273,7 @@ class GoogleSlidesGenerator:
                     'fontSize': {'magnitude': 40, 'unit': 'PT'},
                     'bold': True
                 },
-                'fields': 'foregroundColor,fontFamily,fontSize,bold'
+                'fields': 'foregroundColor'
             }
         }]
         
@@ -293,9 +291,7 @@ class GoogleSlidesGenerator:
             }
         }
         text_color = {
-            'solidFill': {
-                'color': self.theme['colors']['primary']['solid']['color']
-            }
+            'opaqueColor': self.theme['colors']['primary']['solid']['color']
         }
 
         requests = [{
@@ -342,7 +338,7 @@ class GoogleSlidesGenerator:
                     'fontSize': {'magnitude': 36, 'unit': 'PT'},
                     'bold': True
                 },
-                'fields': 'foregroundColor,fontFamily,fontSize,bold'
+                'fields': 'foregroundColor'
             }
         }]
         
@@ -360,14 +356,10 @@ class GoogleSlidesGenerator:
             }
         }
         text_color = {
-            'solidFill': {
-                'color': self.theme['colors']['primary']['solid']['color']
-            }
+            'opaqueColor': self.theme['colors']['primary']['solid']['color']
         }
         body_color = {
-            'solidFill': {
-                'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}
-            }
+            'opaqueColor': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}
         }
 
         requests = []
@@ -454,7 +446,7 @@ class GoogleSlidesGenerator:
                         'fontSize': {'magnitude': 24, 'unit': 'PT'},
                         'bold': True
                     },
-                    'fields': 'foregroundColor,fontFamily,fontSize,bold'
+                    'fields': 'foregroundColor'
                 }
             }
         ])
@@ -477,7 +469,7 @@ class GoogleSlidesGenerator:
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
-                        'fields': 'foregroundColor,fontFamily,fontSize'
+                        'fields': 'foregroundColor'
                     }
                 }
             ])
@@ -498,7 +490,7 @@ class GoogleSlidesGenerator:
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
-                        'fields': 'foregroundColor,fontFamily,fontSize'
+                        'fields': 'foregroundColor'
                     }
                 }
             ])
@@ -519,7 +511,7 @@ class GoogleSlidesGenerator:
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
-                        'fields': 'foregroundColor,fontFamily,fontSize'
+                        'fields': 'foregroundColor'
                     }
                 }
             ])
