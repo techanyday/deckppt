@@ -142,53 +142,67 @@ def logout():
 def generate_presentation():
     try:
         # Get form data
-        topic = request.form.get('topic', '').strip()
+        topic = request.form.get('title', '').strip()  # Using 'title' as both title and topic
         num_slides = request.form.get('num_slides', '5')
         
         # Validate input
         if not topic:
-            return jsonify({'error': 'Please provide a topic for your presentation'}), 400
+            return jsonify({
+                "success": False,
+                "message": "Please provide a topic for your presentation"
+            }), 400
             
         try:
             num_slides = int(num_slides)
             if num_slides < 1 or num_slides > 10:
-                return jsonify({'error': 'Number of slides must be between 1 and 10'}), 400
+                return jsonify({
+                    "success": False,
+                    "message": "Number of slides must be between 1 and 10"
+                }), 400
         except ValueError:
-            return jsonify({'error': 'Invalid number of slides'}), 400
+            return jsonify({
+                "success": False,
+                "message": "Invalid number of slides"
+            }), 400
         
         # Initialize slides service with stored credentials
         if 'slides_credentials' not in session:
-            auth_url, state = slides.get_authorization_url()
-            session['oauth_state'] = state
-            return jsonify({"redirect": auth_url})
-            
-        # Initialize the service with stored credentials
-        slides.init_service(session['slides_credentials'])
+            return jsonify({
+                "success": False,
+                "message": "Please authenticate with Google first"
+            }), 401
+
+        # Initialize slides generator
+        generator = GoogleSlidesGenerator()
+        generator.init_service()
         
-        # Generate the presentation
-        presentation_id = slides.create_presentation(
-            title=topic,
+        # Create presentation with topic as both title and content topic
+        presentation_id = generator.create_presentation(
+            title=topic,  # Use topic as title
+            topic=topic,  # Use same topic for content generation
             num_slides=num_slides
         )
         
-        if presentation_id:
-            presentation_url = f"https://docs.google.com/presentation/d/{presentation_id}/edit"
-            return jsonify({
-                "success": True,
-                "message": "Presentation created successfully!",
-                "presentation_url": presentation_url
-            })
-        else:
+        if not presentation_id:
             return jsonify({
                 "success": False,
                 "message": "Failed to create presentation. Please try again."
             }), 500
             
+        # Get presentation URL
+        presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
+        
+        return jsonify({
+            "success": True,
+            "message": "Presentation created successfully!",
+            "url": presentation_url
+        })
+        
     except Exception as e:
         app.logger.error(f"Error generating presentation: {str(e)}")
         return jsonify({
             "success": False,
-            "message": "An unexpected error occurred. Please try again."
+            "message": "An error occurred while creating your presentation"
         }), 500
 
 @app.route('/oauth2callback')
