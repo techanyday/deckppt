@@ -39,28 +39,28 @@ class SlideTheme:
         {
             'name': 'Ocean Breeze',
             'colors': {
-                'primary': {'red': 0.0, 'green': 0.4, 'blue': 0.8},
-                'secondary': {'red': 0.8, 'green': 0.9, 'blue': 1.0},
-                'accent': {'red': 0.0, 'green': 0.6, 'blue': 0.4},
-                'background': {'red': 0.95, 'green': 0.98, 'blue': 1.0}
+                'primary': {'color': {'rgbColor': {'red': 0.0, 'green': 0.4, 'blue': 0.8}}},
+                'secondary': {'color': {'rgbColor': {'red': 0.8, 'green': 0.9, 'blue': 1.0}}},
+                'accent': {'color': {'rgbColor': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}},
+                'background': {'color': {'rgbColor': {'red': 0.95, 'green': 0.98, 'blue': 1.0}}}
             }
         },
         {
             'name': 'Lavender Dream',
             'colors': {
-                'primary': {'red': 0.4, 'green': 0.2, 'blue': 0.8},
-                'secondary': {'red': 0.9, 'green': 0.85, 'blue': 1.0},
-                'accent': {'red': 0.6, 'green': 0.2, 'blue': 0.8},
-                'background': {'red': 0.98, 'green': 0.95, 'blue': 1.0}
+                'primary': {'color': {'rgbColor': {'red': 0.4, 'green': 0.2, 'blue': 0.8}}},
+                'secondary': {'color': {'rgbColor': {'red': 0.9, 'green': 0.85, 'blue': 1.0}}},
+                'accent': {'color': {'rgbColor': {'red': 0.6, 'green': 0.2, 'blue': 0.8}}},
+                'background': {'color': {'rgbColor': {'red': 0.98, 'green': 0.95, 'blue': 1.0}}}
             }
         },
         {
             'name': 'Forest Fresh',
             'colors': {
-                'primary': {'red': 0.0, 'green': 0.6, 'blue': 0.4},
-                'secondary': {'red': 0.85, 'green': 0.95, 'blue': 0.9},
-                'accent': {'red': 0.2, 'green': 0.8, 'blue': 0.4},
-                'background': {'red': 0.95, 'green': 1.0, 'blue': 0.98}
+                'primary': {'color': {'rgbColor': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}},
+                'secondary': {'color': {'rgbColor': {'red': 0.85, 'green': 0.95, 'blue': 0.9}}},
+                'accent': {'color': {'rgbColor': {'red': 0.2, 'green': 0.8, 'blue': 0.4}}},
+                'background': {'color': {'rgbColor': {'red': 0.95, 'green': 1.0, 'blue': 0.98}}}
             }
         }
     ]
@@ -245,9 +245,9 @@ class GoogleSlidesGenerator:
             'updateShapeProperties': {
                 'objectId': 'background',
                 'shapeProperties': {
-                    'solidFill': self.theme['colors']['background']
+                    'shapeBackgroundFill': self.theme['colors']['background']
                 },
-                'fields': 'solidFill'
+                'fields': 'shapeBackgroundFill'
             }
         }, {
             'insertText': {
@@ -300,9 +300,9 @@ class GoogleSlidesGenerator:
             'updateShapeProperties': {
                 'objectId': 'background',
                 'shapeProperties': {
-                    'solidFill': self.theme['colors']['secondary']
+                    'shapeBackgroundFill': self.theme['colors']['secondary']
                 },
-                'fields': 'solidFill'
+                'fields': 'shapeBackgroundFill'
             }
         }, {
             'insertText': {
@@ -389,9 +389,9 @@ class GoogleSlidesGenerator:
                 'updateShapeProperties': {
                     'objectId': 'background',
                     'shapeProperties': {
-                        'solidFill': self.theme['colors']['background']
+                        'shapeBackgroundFill': self.theme['colors']['background']
                     },
-                    'fields': 'solidFill'
+                    'fields': 'shapeBackgroundFill'
                 }
             }
         ])
@@ -432,7 +432,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'leftColumn',
                         'style': {
-                            'foregroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
+                            'foregroundColor': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}},
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
@@ -453,7 +453,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'rightColumn',
                         'style': {
-                            'foregroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
+                            'foregroundColor': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}},
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
@@ -474,7 +474,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'body',
                         'style': {
-                            'foregroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
+                            'foregroundColor': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}},
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
