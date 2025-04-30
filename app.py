@@ -141,14 +141,20 @@ def logout():
 @login_required
 def generate_presentation():
     try:
-        topic = request.form.get('topic')
+        # Get form data
+        topic = request.form.get('topic', '').strip()
+        num_slides = request.form.get('num_slides', '5')
+        
+        # Validate input
         if not topic:
-            return jsonify({
-                "success": False,
-                "message": "Please provide a topic for the presentation."
-            }), 400
+            return jsonify({'error': 'Please provide a topic for your presentation'}), 400
             
-        num_slides = int(request.form.get('num_slides', 5))
+        try:
+            num_slides = int(num_slides)
+            if num_slides < 1 or num_slides > 10:
+                return jsonify({'error': 'Number of slides must be between 1 and 10'}), 400
+        except ValueError:
+            return jsonify({'error': 'Invalid number of slides'}), 400
         
         # Initialize slides service with stored credentials
         if 'slides_credentials' not in session:
@@ -178,12 +184,6 @@ def generate_presentation():
                 "message": "Failed to create presentation. Please try again."
             }), 500
             
-    except ValueError as e:
-        app.logger.error(f"Validation error: {str(e)}")
-        return jsonify({
-            "success": False,
-            "message": str(e)
-        }), 400
     except Exception as e:
         app.logger.error(f"Error generating presentation: {str(e)}")
         return jsonify({

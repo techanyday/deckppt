@@ -94,39 +94,34 @@ class GoogleSlidesGenerator:
             logger.error(f"Error initializing service: {str(e)}")
             raise
             
-    def create_presentation(self, title, num_slides=5, theme="MODERN_BLUE"):
-        """Create a new presentation with the specified title and theme."""
-        if not self.service:
-            raise ValueError("Service not initialized. Call init_service first.")
-            
+    def create_presentation(self, title, topic, num_slides=5):
+        """Create a new presentation with the given title and content."""
         try:
+            # Ensure num_slides is an integer and within bounds
+            try:
+                num_slides = int(num_slides)
+                num_slides = max(1, min(num_slides, 10))  # Limit between 1 and 10 slides
+            except (TypeError, ValueError):
+                num_slides = 5  # Default to 5 if invalid
+                
+            logger.info(f"Creating presentation with {num_slides} slides")
+            
             # Create new presentation
-            presentation = {
-                'title': title
-            }
-            presentation = self.service.presentations().create(body=presentation).execute()
+            presentation = self.service.presentations().create(body={'title': title}).execute()
             presentation_id = presentation.get('presentationId')
-            logger.info(f'Created presentation with ID: {presentation_id}')
+            logger.info(f"Created presentation with ID: {presentation_id}")
             
-            # Apply theme (modern blue gradient)
-            if theme == "MODERN_BLUE":
-                self._apply_modern_blue_theme(presentation_id)
+            # Generate content sections (with exact slide count)
+            content_sections = self._generate_content_sections(topic, num_slides)
             
-            # Create title slide
-            self._create_title_slide(presentation_id, title)
-            
-            # Create overview slide
-            self._create_overview_slide(presentation_id, title)
-            
-            # Generate and create content slides
-            content = self._generate_content_sections(title, (num_slides - 2) * 3)
-            self._create_content_slides(presentation_id, content)
+            # Create content slides
+            self._create_content_slides(presentation_id, content_sections)
             
             return presentation_id
             
-        except HttpError as error:
-            logger.error(f'An error occurred: {error}')
-            return None
+        except Exception as e:
+            logger.error(f"An error occurred: {str(e)}")
+            raise
             
     def _apply_modern_blue_theme(self, presentation_id):
         """Apply modern blue theme to the presentation."""
@@ -225,20 +220,23 @@ class GoogleSlidesGenerator:
             from openai import OpenAI
             client = OpenAI()
             
-            system_prompt = """You are a presentation content generator. Create informative and engaging content for a presentation.
-            Each section should have:
-            1. A clear, concise title
-            2. Exactly 5 bullet points that are 5-12 words each
+            system_prompt = f"""You are a presentation content generator. Create informative and engaging content for a presentation.
+
+            CRITICAL INSTRUCTION:
+            You MUST generate EXACTLY {num_sections} slides, no more and no less.
+            
+            Each slide section MUST have:
+            1. A clear, concise title (2-5 words)
+            2. Exactly 5 bullet points (5-12 words each)
             3. Each bullet point should be a complete thought
             4. Content should be factual and professional
             
-            IMPORTANT: Generate EXACTLY the number of sections specified in the user request.
-            Do not generate more or fewer sections than requested.
+            Format the response as a JSON array with EXACTLY {num_sections} objects.
+            Each object must have 'title' and 'points' fields.
             
-            Format the response as a JSON array of objects, each with 'title' and 'points' fields.
-            Example for 1 section:
+            Example format (showing 1 slide):
             [
-                {
+                {{
                     "title": "Market Overview",
                     "points": [
                         "Global market expected to reach $500B by 2025",
@@ -247,12 +245,17 @@ class GoogleSlidesGenerator:
                         "Top three players control 45% of market",
                         "New entrants focus on innovative technologies"
                     ]
-                }
-            ]"""
+                }}
+            ]
+
+            FINAL CHECK:
+            - Your response MUST contain exactly {num_sections} slide objects
+            - Each slide MUST have exactly 5 bullet points
+            - DO NOT generate more than {num_sections} slides"""
 
             messages = [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Generate EXACTLY {num_sections} presentation sections (no more, no less) about: {topic}"}
+                {"role": "user", "content": f"Generate a presentation with EXACTLY {num_sections} slides about: {topic}"}
             ]
 
             max_retries = 3
@@ -264,7 +267,7 @@ class GoogleSlidesGenerator:
                         model="gpt-3.5-turbo",
                         messages=messages,
                         temperature=0.7,
-                        max_tokens=1000,  # Increased from default
+                        max_tokens=1000,
                         top_p=0.9,
                         frequency_penalty=0.2,
                         presence_penalty=0.2
@@ -281,13 +284,27 @@ class GoogleSlidesGenerator:
                     # Parse the response
                     content_sections = json.loads(content)
                     
-                    # Validate exact section count
-                    if len(content_sections) != num_sections:
-                        logger.warning(f"Wrong number of sections generated (got {len(content_sections)}, expected {num_sections})")
+                    # Force exact section count (failsafe)
+                    if len(content_sections) > num_sections:
+                        logger.warning(f"Truncating from {len(content_sections)} to {num_sections} sections")
+                        content_sections = content_sections[:num_sections]
+                    elif len(content_sections) < num_sections:
+                        logger.warning(f"Too few sections generated (got {len(content_sections)}, expected {num_sections})")
+                        retry_count += 1
+                        continue
+                        
+                    # Validate each section has exactly 5 points
+                    valid_sections = True
+                    for section in content_sections:
+                        if len(section.get('points', [])) != 5:
+                            valid_sections = False
+                            break
+                            
+                    if not valid_sections:
+                        logger.warning("Some sections don't have exactly 5 points")
                         retry_count += 1
                         continue
                     
-                    # No need to slice since we validate exact count
                     return content_sections
                     
                 except Exception as e:
