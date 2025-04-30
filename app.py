@@ -314,108 +314,45 @@ def oauth2callback():
 
 @app.route('/generate', methods=['POST'])
 def generate_presentation():
+    """Generate a presentation based on user input."""
     try:
         # Get form data
-        topic = request.form.get('topic', '').strip()
-        num_slides = request.form.get('num_slides', '5')
+        title = request.form.get('title', 'Untitled Presentation')
+        topic = request.form.get('topic', '')
+        num_slides = int(request.form.get('num_slides', 5))
         
         # Validate input
         if not topic:
-            return jsonify({
-                "success": False,
-                "message": "Please provide a topic for your presentation"
-            }), 400
-            
-        try:
-            num_slides = int(num_slides)
-            if num_slides < 1 or num_slides > 10:
-                return jsonify({
-                    "success": False,
-                    "message": "Number of slides must be between 1 and 10"
-                }), 400
-        except ValueError:
-            return jsonify({
-                "success": False,
-                "message": "Invalid number of slides"
-            }), 400
+            return jsonify({'error': 'Please provide a topic'}), 400
         
-        # Check if user is authenticated
+        if num_slides < 1 or num_slides > 10:
+            return jsonify({'error': 'Number of slides must be between 1 and 10'}), 400
+        
+        # Get credentials from session
         if 'google_token' not in session:
-            # Store presentation details in session
-            session['pending_topic'] = topic
-            session['pending_num_slides'] = num_slides
-            
-            # Return auth URL
-            return jsonify({
-                "success": False,
-                "message": "Please authenticate with Google first",
-                "redirect": url_for('google_auth')
-            }), 401
-
-        try:
-            # Initialize slides generator with stored credentials
-            generator = GoogleSlidesGenerator()
-            generator.init_service(session['google_token'])
-            
-            # Create presentation
-            presentation_id = generator.create_presentation(
-                title=topic,
-                topic=topic,
-                num_slides=num_slides
-            )
-            
-            if not presentation_id:
-                return jsonify({
-                    "success": False,
-                    "message": "Failed to create presentation. Please try again."
-                }), 500
-                
-            # Get presentation URL
-            presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
-            
-            return jsonify({
-                "success": True,
-                "message": "Presentation created successfully!",
-                "url": presentation_url
-            })
-            
-        except ValueError as e:
-            # Handle validation errors
-            app.logger.error(f"Validation error: {str(e)}")
-            return jsonify({
-                "success": False,
-                "message": str(e)
-            }), 400
-            
-        except HttpError as e:
-            # Handle Google API errors
-            app.logger.error(f"Google API error: {str(e)}")
-            if e.resp.status == 401:
-                # Clear invalid credentials
-                session.pop('google_token', None)
-                return jsonify({
-                    "success": False,
-                    "message": "Your Google authentication has expired. Please sign in again.",
-                    "redirect": url_for('google_auth')
-                }), 401
-            return jsonify({
-                "success": False,
-                "message": "Failed to create presentation. Please try again."
-            }), 500
-            
-        except Exception as e:
-            app.logger.error(f"Unexpected error: {str(e)}")
-            return jsonify({
-                "success": False,
-                "message": "An unexpected error occurred. Please try again."
-            }), 500
-            
-    except Exception as e:
-        app.logger.error(f"Error generating presentation: {str(e)}")
+            return jsonify({'error': 'Please log in first'}), 401
+        
+        # Create slides generator
+        generator = GoogleSlidesGenerator()
+        generator.init_service(session['google_token'])
+        
+        # Generate presentation
+        result = generator.create_presentation(title, topic, num_slides)
+        
+        # Return success response
         return jsonify({
-            "success": False,
-            "message": "An error occurred while creating your presentation"
-        }), 500
+            'success': True,
+            'message': 'Presentation created successfully!',
+            'presentation': {
+                'id': result['id'],
+                'url': result['url'],
+                'title': result['title']
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"Google API error: {str(e)}")
+        return jsonify({'error': 'Failed to create presentation. Please try again.'}), 500
 
 @app.route('/download/<filename>')
 @login_required

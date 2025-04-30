@@ -181,6 +181,9 @@ class GoogleSlidesGenerator:
             presentation = self.service.presentations().create(body=presentation).execute()
             presentation_id = presentation.get('presentationId')
             
+            if not presentation_id:
+                raise ValueError("Failed to create presentation - no ID returned")
+            
             # Get random theme
             self.theme = SlideTheme.get_random_theme()
             
@@ -198,8 +201,15 @@ class GoogleSlidesGenerator:
                 else:
                     self._create_content_slide(presentation_id, section['title'], section['points'], layout)
             
+            # Get the presentation metadata to verify it exists
+            presentation = self.service.presentations().get(presentationId=presentation_id).execute()
+            
             # Return presentation URL
-            return f"https://docs.google.com/presentation/d/{presentation_id}/edit"
+            return {
+                'id': presentation_id,
+                'url': f"https://docs.google.com/presentation/d/{presentation_id}/edit",
+                'title': presentation.get('title', title)
+            }
             
         except Exception as e:
             logger.error(f"Error creating presentation: {str(e)}")
