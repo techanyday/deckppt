@@ -63,16 +63,22 @@ GOOGLE_CLIENT_CONFIG = {
         'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
         'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
         'token_uri': 'https://oauth2.googleapis.com/token',
-        'redirect_uris': [os.getenv('OAUTH_REDIRECT_URI')],
+        'redirect_uris': [os.getenv('OAUTH_REDIRECT_URI', 'http://localhost:5000/oauth2callback')],
+        'javascript_origins': [os.getenv('APP_URL', 'http://localhost:5000')]
     }
 }
 
 # Configure OAuth 2.0 flow
-flow = Flow.from_client_config(
-    GOOGLE_CLIENT_CONFIG,
-    scopes=['https://www.googleapis.com/auth/presentations'],
-    redirect_uri=os.getenv('OAUTH_REDIRECT_URI')
-)
+def create_flow():
+    """Create a new OAuth 2.0 flow with proper configuration."""
+    base_url = os.getenv('APP_URL', 'http://localhost:5000')
+    redirect_uri = f"{base_url}/oauth2callback"
+    
+    return Flow.from_client_config(
+        GOOGLE_CLIENT_CONFIG,
+        scopes=['https://www.googleapis.com/auth/presentations'],
+        redirect_uri=redirect_uri
+    )
 
 @app.before_request
 def before_request():
@@ -166,12 +172,19 @@ def google_auth():
         state = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
         session['oauth_state'] = state
         
+        # Create new flow for this request
+        flow = create_flow()
+        
         # Get authorization URL
-        auth_url = flow.authorization_url(
-            state=state,
+        auth_url, _ = flow.authorization_url(
             access_type='offline',
-            include_granted_scopes='true'
-        )[0]
+            include_granted_scopes='true',
+            state=state,
+            prompt='consent'  # Always show consent screen
+        )
+        
+        # Store flow in session
+        session['flow'] = flow.credentials_to_dict()
         
         return redirect(auth_url)
     except Exception as e:
@@ -266,8 +279,15 @@ def oauth2callback():
         if state != session.get('oauth_state'):
             return 'Invalid state token', 401
             
+        # Recreate flow with stored config
+        flow = create_flow()
+        
         # Exchange code for credentials
-        flow.fetch_token(code=code)
+        flow.fetch_token(
+            code=code,
+            authorization_response=request.url
+        )
+        
         credentials = flow.credentials
         
         # Store credentials in session
