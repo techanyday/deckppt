@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import random
+import uuid
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -29,12 +30,12 @@ class SlideLayout:
     TITLE = 'TITLE'
     TITLE_AND_BODY = 'TITLE_AND_BODY'
     TITLE_AND_TWO_COLUMNS = 'TITLE_AND_TWO_COLUMNS'
-    SECTION = 'SECTION_HEADER'
+    SECTION_HEADER = 'SECTION_HEADER'
     TITLE_ONLY = 'TITLE_ONLY'
     BLANK = 'BLANK'
 
 class PlaceholderType:
-    """Predefined placeholder types."""
+    """Slide placeholder types."""
     TITLE = 'TITLE'
     BODY = 'BODY'
     CENTERED_TITLE = 'CENTERED_TITLE'
@@ -42,40 +43,48 @@ class PlaceholderType:
     SLIDE_NUMBER = 'SLIDE_NUMBER'
 
 class SlideTheme:
-    """Predefined color themes."""
+    """Theme colors and styles."""
     THEMES = [
+        {
+            'name': 'Modern Blue',
+            'colors': {
+                'primary': {'solid': {'color': {'rgbColor': {'red': 0.27, 'green': 0.49, 'blue': 0.75}}}},
+                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
+            }
+        },
+        {
+            'name': 'Forest Green',
+            'colors': {
+                'primary': {'solid': {'color': {'rgbColor': {'red': 0.22, 'green': 0.60, 'blue': 0.40}}}},
+                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
+            }
+        },
         {
             'name': 'Ocean Breeze',
             'colors': {
                 'primary': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.4, 'blue': 0.8}}}},
-                'secondary': {'solid': {'color': {'rgbColor': {'red': 0.8, 'green': 0.9, 'blue': 1.0}}}},
-                'accent': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}}},
-                'background': {'solid': {'color': {'rgbColor': {'red': 0.95, 'green': 0.98, 'blue': 1.0}}}}
+                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
             }
         },
         {
             'name': 'Lavender Dream',
             'colors': {
                 'primary': {'solid': {'color': {'rgbColor': {'red': 0.4, 'green': 0.2, 'blue': 0.8}}}},
-                'secondary': {'solid': {'color': {'rgbColor': {'red': 0.9, 'green': 0.85, 'blue': 1.0}}}},
-                'accent': {'solid': {'color': {'rgbColor': {'red': 0.6, 'green': 0.2, 'blue': 0.8}}}},
-                'background': {'solid': {'color': {'rgbColor': {'red': 0.98, 'green': 0.95, 'blue': 1.0}}}}
+                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
             }
         },
         {
             'name': 'Forest Fresh',
             'colors': {
                 'primary': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}}},
-                'secondary': {'solid': {'color': {'rgbColor': {'red': 0.85, 'green': 0.95, 'blue': 0.9}}}},
-                'accent': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.8, 'blue': 0.4}}}},
-                'background': {'solid': {'color': {'rgbColor': {'red': 0.95, 'green': 1.0, 'blue': 0.98}}}}
+                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
             }
         }
     ]
-
+    
     @classmethod
     def get_random_theme(cls):
-        """Get a random color theme."""
+        """Get a random theme."""
         return random.choice(cls.THEMES)
 
 class GoogleSlidesGenerator:
@@ -83,13 +92,12 @@ class GoogleSlidesGenerator:
         """Initialize the Google Slides generator."""
         self.service = None
         self.theme = None
-        self.current_layout_index = 0
         self.current_slide_index = 0
         self.layouts = [
             SlideLayout.TITLE_AND_BODY,
             SlideLayout.TITLE_AND_TWO_COLUMNS,
             SlideLayout.TITLE_AND_BODY,
-            SlideLayout.SECTION
+            SlideLayout.SECTION_HEADER
         ]
         
     def init_service(self, credentials_dict=None):
@@ -157,13 +165,13 @@ class GoogleSlidesGenerator:
             
     def get_next_layout(self):
         """Get the next layout in rotation."""
-        layout = self.layouts[self.current_layout_index]
-        self.current_layout_index = (self.current_layout_index + 1) % len(self.layouts)
+        layout = self.layouts[self.current_slide_index]
+        self.current_slide_index = (self.current_slide_index + 1) % len(self.layouts)
         return layout
 
     def get_unique_id(self, base_id):
         """Generate a unique ID for a slide element."""
-        unique_id = f"{base_id}_{self.current_slide_index}"
+        unique_id = f"{base_id}_{uuid.uuid4().hex[:8]}"
         return unique_id
 
     def create_presentation(self, title, topic, num_slides=5):
@@ -194,12 +202,7 @@ class GoogleSlidesGenerator:
             sections = self._generate_content(topic, num_slides)
             
             # Create content slides
-            for section in sections:
-                layout = self.get_next_layout()
-                if layout == SlideLayout.SECTION:
-                    self._create_section_slide(presentation_id, section['title'])
-                else:
-                    self._create_content_slide(presentation_id, section['title'], section['points'], layout)
+            self._create_content_slides(presentation_id, sections)
             
             # Get the presentation metadata to verify it exists
             presentation = self.service.presentations().get(presentationId=presentation_id).execute()
@@ -220,7 +223,7 @@ class GoogleSlidesGenerator:
         # Convert theme colors to API format
         background_fill = {
             'solidFill': {
-                'color': self.theme['colors']['background']['solid']['color']
+                'color': self.theme['colors']['primary']['solid']['color']
             }
         }
         text_color = {
@@ -287,169 +290,121 @@ class GoogleSlidesGenerator:
         ).execute()
         self.current_slide_index += 1
 
-    def _create_section_slide(self, presentation_id, title):
-        """Create a section break slide."""
-        # Convert theme colors to API format
-        background_fill = {
-            'solidFill': {
-                'color': self.theme['colors']['secondary']['solid']['color']
-            }
-        }
-        text_color = {
-            'opaqueColor': self.theme['colors']['primary']['solid']['color']
-        }
-
-        # Generate unique IDs
-        title_id = self.get_unique_id('title')
-        background_id = self.get_unique_id('background')
-        page_id = self.get_unique_id('page')
-
-        requests = [{
-            'createSlide': {
-                'objectId': page_id,
-                'slideLayoutReference': {'predefinedLayout': SlideLayout.SECTION},
-                'placeholderIdMappings': [
-                    {
-                        'layoutPlaceholder': {'type': PlaceholderType.TITLE},
-                        'objectId': title_id
-                    }
-                ]
-            }
-        }, {
-            'createShape': {
-                'objectId': background_id,
-                'shapeType': 'RECTANGLE',
-                'elementProperties': {
-                    'pageObjectId': page_id,
-                    'size': {'width': {'magnitude': 720, 'unit': 'PT'},
-                            'height': {'magnitude': 405, 'unit': 'PT'}},
-                    'transform': {'scaleX': 1, 'scaleY': 1,
-                                'translateX': 0, 'translateY': 0, 'unit': 'PT'}
-                }
-            }
-        }, {
-            'updateShapeProperties': {
-                'objectId': background_id,
-                'shapeProperties': {
-                    'shapeBackgroundFill': background_fill
-                },
-                'fields': 'shapeBackgroundFill'
-            }
-        }, {
-            'insertText': {
-                'objectId': title_id,
-                'text': title
-            }
-        }, {
-            'updateTextStyle': {
-                'objectId': title_id,
-                'style': {
-                    'foregroundColor': text_color,
-                    'fontFamily': 'Montserrat',
-                    'fontSize': {'magnitude': 36, 'unit': 'PT'},
-                    'bold': True
-                },
-                'fields': 'foregroundColor,fontFamily,fontSize,bold'
-            }
-        }]
+    def _create_content_slides(self, presentation_id, sections):
+        """Create content slides with proper error handling and validation."""
+        requests = []
         
-        self.service.presentations().batchUpdate(
-            presentationId=presentation_id,
-            body={'requests': requests}
-        ).execute()
-        self.current_slide_index += 1
-
-    def _create_content_slide(self, presentation_id, title, points, layout=None):
-        """Create a content slide with title and bullet points."""
-        try:
-            if not layout:
-                layout = self.get_next_layout()
+        for index, section in enumerate(sections):
+            title = section.get('title', '').strip()
+            points = [p.strip() for p in section.get('points', []) if p.strip()]
+            
+            # Skip invalid sections
+            if not title or len(points) < 3:
+                logger.warning(f"Skipping slide #{index + 1} due to insufficient content")
+                continue
+                
+            # Generate unique IDs
+            slide_id = self.get_unique_id('slide')
+            title_id = self.get_unique_id('title')
+            body_id = self.get_unique_id('body')
             
             # Create slide
-            slide = {
+            requests.append({
                 'createSlide': {
-                    'objectId': f'slide_{self.current_slide_index}',
-                    'slideLayoutReference': {'predefinedLayout': layout},
+                    'objectId': slide_id,
+                    'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE_AND_BODY},
                     'placeholderIdMappings': [
                         {
                             'layoutPlaceholder': {'type': PlaceholderType.TITLE},
-                            'objectId': f'title_{self.current_slide_index}'
+                            'objectId': title_id
                         },
                         {
                             'layoutPlaceholder': {'type': PlaceholderType.BODY},
-                            'objectId': f'body_{self.current_slide_index}'
+                            'objectId': body_id
                         }
                     ]
                 }
-            }
+            })
             
             # Insert title
-            title_request = {
+            requests.append({
                 'insertText': {
-                    'objectId': f'title_{self.current_slide_index}',
+                    'objectId': title_id,
                     'text': title
                 }
-            }
+            })
             
             # Format bullet points
             bullet_text = ''
             for point in points:
-                # Clean and format the point
                 point = point.strip()
                 if not point.endswith(('.', '!', '?')):
                     point += '.'
-                bullet_text += point + '\n'
+                bullet_text += f"• {point}\n"
             
             # Insert bullet points
-            body_request = {
+            requests.append({
                 'insertText': {
-                    'objectId': f'body_{self.current_slide_index}',
-                    'text': bullet_text
+                    'objectId': body_id,
+                    'text': bullet_text.strip()
                 }
-            }
+            })
             
-            # Apply text styling
-            style_requests = [
-                # Title style
-                {
-                    'updateTextStyle': {
-                        'objectId': f'title_{self.current_slide_index}',
-                        'style': {
-                            'fontSize': {'magnitude': 24, 'unit': 'PT'},
-                            'foregroundColor': self.theme['colors']['primary']['solid']['color'],
-                            'bold': True
-                        },
-                        'fields': 'fontSize,foregroundColor,bold'
-                    }
-                },
-                # Body style
-                {
-                    'updateTextStyle': {
-                        'objectId': f'body_{self.current_slide_index}',
-                        'style': {
-                            'fontSize': {'magnitude': 18, 'unit': 'PT'},
-                            'foregroundColor': self.theme['colors']['primary']['solid']['color'],
-                            'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
-                            'spaceBefore': {'magnitude': 10, 'unit': 'PT'},
-                            'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
-                        },
-                        'fields': 'fontSize,foregroundColor,spaceAbove,spaceBefore,bulletPreset'
-                    }
+            # Style title
+            requests.append({
+                'updateTextStyle': {
+                    'objectId': title_id,
+                    'style': {
+                        'fontSize': {'magnitude': 24, 'unit': 'PT'},
+                        'foregroundColor': self.theme['colors']['primary']['solid']['color'],
+                        'bold': True
+                    },
+                    'fields': 'fontSize,foregroundColor,bold'
                 }
-            ]
+            })
             
-            # Execute requests
-            requests = [slide, title_request, body_request] + style_requests
-            self.service.presentations().batchUpdate(
-                presentationId=presentation_id,
-                body={'requests': requests}
-            ).execute()
+            # Style body
+            requests.append({
+                'updateTextStyle': {
+                    'objectId': body_id,
+                    'style': {
+                        'fontSize': {'magnitude': 18, 'unit': 'PT'},
+                        'foregroundColor': self.theme['colors']['text']['solid']['color'],
+                        'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
+                        'spaceBefore': {'magnitude': 10, 'unit': 'PT'}
+                    },
+                    'fields': 'fontSize,foregroundColor,spaceAbove,spaceBefore'
+                }
+            })
+            
+            # Update paragraph style for bullets
+            requests.append({
+                'updateParagraphStyle': {
+                    'objectId': body_id,
+                    'style': {
+                        'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
+                        'spaceBefore': {'magnitude': 10, 'unit': 'PT'},
+                        'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
+                    },
+                    'fields': 'spaceAbove,spaceBefore,bulletPreset'
+                }
+            })
             
             self.current_slide_index += 1
-            
-        except Exception as e:
-            logger.error(f"Error creating content slide: {str(e)}")
-            raise
+        
+        # Execute requests if any valid slides were created
+        if requests:
+            try:
+                self.service.presentations().batchUpdate(
+                    presentationId=presentation_id,
+                    body={'requests': requests}
+                ).execute()
+            except Exception as e:
+                logger.error(f"Error creating slides: {str(e)}")
+                raise
+        else:
+            logger.error("No valid slides to create")
+            raise ValueError("Failed to create any valid slides")
 
     def _generate_content(self, topic, num_slides):
         """Generate content for the presentation using OpenAI."""
