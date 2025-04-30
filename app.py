@@ -68,6 +68,17 @@ GOOGLE_CLIENT_CONFIG = {
     }
 }
 
+def credentials_to_dict(credentials):
+    """Convert Google OAuth2 credentials to a dictionary."""
+    return {
+        'token': credentials.token,
+        'refresh_token': credentials.refresh_token,
+        'token_uri': credentials.token_uri,
+        'client_id': credentials.client_id,
+        'client_secret': credentials.client_secret,
+        'scopes': credentials.scopes
+    }
+
 # Configure OAuth 2.0 flow
 def create_flow():
     """Create a new OAuth 2.0 flow with proper configuration."""
@@ -184,7 +195,10 @@ def google_auth():
         )
         
         # Store flow in session
-        session['flow'] = flow.credentials_to_dict()
+        session['flow'] = {
+            'state': state,
+            'redirect_uri': flow.redirect_uri
+        }
         
         return redirect(auth_url)
     except Exception as e:
@@ -193,6 +207,57 @@ def google_auth():
             "success": False,
             "message": "Failed to start authentication"
         }), 500
+
+@app.route('/oauth2callback')
+def oauth2callback():
+    """Handle the OAuth 2.0 callback from Google."""
+    try:
+        # Get the authorization code and state
+        code = request.args.get('code')
+        state = request.args.get('state')
+        
+        # Validate state token
+        if state != session.get('oauth_state'):
+            return 'Invalid state token', 401
+            
+        # Recreate flow with stored config
+        flow = create_flow()
+        
+        # Exchange code for credentials
+        flow.fetch_token(
+            code=code,
+            authorization_response=request.url
+        )
+        
+        credentials = flow.credentials
+        
+        # Store credentials in session
+        session['google_token'] = credentials_to_dict(credentials)
+        
+        # Check if we have pending presentation to generate
+        if 'pending_topic' in session and 'pending_num_slides' in session:
+            topic = session.pop('pending_topic')
+            num_slides = session.pop('pending_num_slides')
+            
+            # Initialize generator and create presentation
+            generator = GoogleSlidesGenerator()
+            generator.init_service(session['google_token'])
+            
+            presentation_id = generator.create_presentation(
+                title=topic,
+                topic=topic,
+                num_slides=num_slides
+            )
+            
+            if presentation_id:
+                presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
+                return redirect(presentation_url)
+        
+        return redirect(url_for('index'))
+        
+    except Exception as e:
+        app.logger.error(f"OAuth callback error: {str(e)}")
+        return 'Authentication failed', 500
 
 @app.route('/generate', methods=['POST'])
 def generate_presentation():
@@ -231,7 +296,7 @@ def generate_presentation():
             return jsonify({
                 "success": False,
                 "message": "Please authenticate with Google first",
-                "redirect": url_for('google_auth')
+                "redirect": url_for('auth.google')
             }), 401
 
         # Initialize slides generator with stored credentials
@@ -266,64 +331,6 @@ def generate_presentation():
             "success": False,
             "message": "An error occurred while creating your presentation"
         }), 500
-
-@app.route('/oauth2callback')
-def oauth2callback():
-    """Handle the OAuth 2.0 callback from Google."""
-    try:
-        # Get the authorization code
-        code = request.args.get('code')
-        state = request.args.get('state')
-        
-        # Validate state token
-        if state != session.get('oauth_state'):
-            return 'Invalid state token', 401
-            
-        # Recreate flow with stored config
-        flow = create_flow()
-        
-        # Exchange code for credentials
-        flow.fetch_token(
-            code=code,
-            authorization_response=request.url
-        )
-        
-        credentials = flow.credentials
-        
-        # Store credentials in session
-        session['google_token'] = {
-            'token': credentials.token,
-            'refresh_token': credentials.refresh_token,
-            'token_uri': credentials.token_uri,
-            'client_id': credentials.client_id,
-            'client_secret': credentials.client_secret,
-            'scopes': credentials.scopes
-        }
-        
-        # Check if we have pending presentation to generate
-        if 'pending_topic' in session and 'pending_num_slides' in session:
-            topic = session.pop('pending_topic')
-            num_slides = session.pop('pending_num_slides')
-            
-            # Initialize generator and create presentation
-            generator = GoogleSlidesGenerator()
-            generator.init_service(session['google_token'])
-            
-            presentation_id = generator.create_presentation(
-                title=topic,
-                topic=topic,
-                num_slides=num_slides
-            )
-            
-            if presentation_id:
-                presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
-                return redirect(presentation_url)
-        
-        return redirect(url_for('index'))
-        
-    except Exception as e:
-        app.logger.error(f"OAuth callback error: {str(e)}")
-        return 'Authentication failed', 500
 
 @app.route('/download/<filename>')
 @login_required
