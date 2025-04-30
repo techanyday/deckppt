@@ -494,8 +494,7 @@ class GoogleSlidesGenerator:
             logger.info(f"Generating content for {num_slides} slides")
             
             prompt = f"""Create an outline for a {num_slides}-slide presentation about {topic}.
-            For each section, provide 5 concise bullet points.
-            Format as JSON with this structure:
+            Return only a JSON object with this structure:
             {{
                 "sections": [
                     {{
@@ -504,22 +503,29 @@ class GoogleSlidesGenerator:
                     }}
                 ]
             }}
-            Make sure each section has exactly 5 points and the total number of sections matches {num_slides}.
+            Each section must have exactly 5 points.
+            The total number of sections must be exactly {num_slides}.
             Keep points concise and impactful.
+            Do not include any markdown formatting, code blocks, or extra text.
             """
             
             # Make API call using the client
             response = openai_client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[
-                    {"role": "system", "content": "You are a helpful presentation content creator."},
+                    {"role": "system", "content": "You are a helpful presentation content creator. Always return valid JSON without any markdown formatting or extra text."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7
             )
             
-            # Get response content
+            # Get response content and clean it
             content = response.choices[0].message.content.strip()
+            
+            # Remove any markdown formatting
+            if content.startswith('```'):
+                content = content[content.find('{'):content.rfind('}')+1]
+            
             logger.info(f"Got OpenAI response: {content[:100]}...")
             
             try:
