@@ -219,6 +219,18 @@ class GoogleSlidesGenerator:
 
     def _create_title_slide(self, presentation_id, title):
         """Create the title slide with theme colors."""
+        # Convert theme colors to API format
+        background_fill = {
+            'solidFill': {
+                'color': self.theme['colors']['background']['solid']['color']
+            }
+        }
+        text_color = {
+            'solidFill': {
+                'color': self.theme['colors']['primary']['solid']['color']
+            }
+        }
+
         requests = [{
             'createSlide': {
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE},
@@ -245,7 +257,7 @@ class GoogleSlidesGenerator:
             'updateShapeProperties': {
                 'objectId': 'background',
                 'shapeProperties': {
-                    'shapeBackgroundFill': self.theme['colors']['background']
+                    'shapeBackgroundFill': background_fill
                 },
                 'fields': 'shapeBackgroundFill'
             }
@@ -258,7 +270,7 @@ class GoogleSlidesGenerator:
             'updateTextStyle': {
                 'objectId': 'title',
                 'style': {
-                    'foregroundColor': self.theme['colors']['primary'],
+                    'foregroundColor': text_color,
                     'fontFamily': 'Montserrat',
                     'fontSize': {'magnitude': 40, 'unit': 'PT'},
                     'bold': True
@@ -274,6 +286,18 @@ class GoogleSlidesGenerator:
 
     def _create_section_slide(self, presentation_id, title):
         """Create a section break slide."""
+        # Convert theme colors to API format
+        background_fill = {
+            'solidFill': {
+                'color': self.theme['colors']['secondary']['solid']['color']
+            }
+        }
+        text_color = {
+            'solidFill': {
+                'color': self.theme['colors']['primary']['solid']['color']
+            }
+        }
+
         requests = [{
             'createSlide': {
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.SECTION},
@@ -300,7 +324,7 @@ class GoogleSlidesGenerator:
             'updateShapeProperties': {
                 'objectId': 'background',
                 'shapeProperties': {
-                    'shapeBackgroundFill': self.theme['colors']['secondary']
+                    'shapeBackgroundFill': background_fill
                 },
                 'fields': 'shapeBackgroundFill'
             }
@@ -313,7 +337,7 @@ class GoogleSlidesGenerator:
             'updateTextStyle': {
                 'objectId': 'title',
                 'style': {
-                    'foregroundColor': self.theme['colors']['primary'],
+                    'foregroundColor': text_color,
                     'fontFamily': 'Montserrat',
                     'fontSize': {'magnitude': 36, 'unit': 'PT'},
                     'bold': True
@@ -329,6 +353,23 @@ class GoogleSlidesGenerator:
 
     def _create_content_slide(self, presentation_id, title, points, layout):
         """Create a content slide with the specified layout."""
+        # Convert theme colors to API format
+        background_fill = {
+            'solidFill': {
+                'color': self.theme['colors']['background']['solid']['color']
+            }
+        }
+        text_color = {
+            'solidFill': {
+                'color': self.theme['colors']['primary']['solid']['color']
+            }
+        }
+        body_color = {
+            'solidFill': {
+                'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}
+            }
+        }
+
         requests = []
         
         # Create slide with layout
@@ -389,7 +430,7 @@ class GoogleSlidesGenerator:
                 'updateShapeProperties': {
                     'objectId': 'background',
                     'shapeProperties': {
-                        'shapeBackgroundFill': self.theme['colors']['background']
+                        'shapeBackgroundFill': background_fill
                     },
                     'fields': 'shapeBackgroundFill'
                 }
@@ -408,7 +449,7 @@ class GoogleSlidesGenerator:
                 'updateTextStyle': {
                     'objectId': 'title',
                     'style': {
-                        'foregroundColor': self.theme['colors']['primary'],
+                        'foregroundColor': text_color,
                         'fontFamily': 'Montserrat',
                         'fontSize': {'magnitude': 24, 'unit': 'PT'},
                         'bold': True
@@ -432,7 +473,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'leftColumn',
                         'style': {
-                            'foregroundColor': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}},
+                            'foregroundColor': body_color,
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
@@ -453,7 +494,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'rightColumn',
                         'style': {
-                            'foregroundColor': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}},
+                            'foregroundColor': body_color,
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
@@ -474,7 +515,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'body',
                         'style': {
-                            'foregroundColor': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}},
+                            'foregroundColor': body_color,
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
