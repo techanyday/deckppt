@@ -14,6 +14,7 @@ import secrets
 import random
 import string
 from google_auth_oauthlib.flow import Flow
+from googleapiclient.errors import HttpError
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -299,32 +300,64 @@ def generate_presentation():
                 "redirect": url_for('auth.google')
             }), 401
 
-        # Initialize slides generator with stored credentials
-        generator = GoogleSlidesGenerator()
-        generator.init_service(session['google_token'])
-        
-        # Create presentation
-        presentation_id = generator.create_presentation(
-            title=topic,
-            topic=topic,
-            num_slides=num_slides
-        )
-        
-        if not presentation_id:
+        try:
+            # Initialize slides generator with stored credentials
+            generator = GoogleSlidesGenerator()
+            generator.init_service(session['google_token'])
+            
+            # Create presentation
+            presentation_id = generator.create_presentation(
+                title=topic,
+                topic=topic,
+                num_slides=num_slides
+            )
+            
+            if not presentation_id:
+                return jsonify({
+                    "success": False,
+                    "message": "Failed to create presentation. Please try again."
+                }), 500
+                
+            # Get presentation URL
+            presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
+            
+            return jsonify({
+                "success": True,
+                "message": "Presentation created successfully!",
+                "url": presentation_url
+            })
+            
+        except ValueError as e:
+            # Handle validation errors
+            app.logger.error(f"Validation error: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": str(e)
+            }), 400
+            
+        except HttpError as e:
+            # Handle Google API errors
+            app.logger.error(f"Google API error: {str(e)}")
+            if e.resp.status == 401:
+                # Clear invalid credentials
+                session.pop('google_token', None)
+                return jsonify({
+                    "success": False,
+                    "message": "Your Google authentication has expired. Please sign in again.",
+                    "redirect": url_for('auth.google')
+                }), 401
             return jsonify({
                 "success": False,
                 "message": "Failed to create presentation. Please try again."
             }), 500
             
-        # Get presentation URL
-        presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
-        
-        return jsonify({
-            "success": True,
-            "message": "Presentation created successfully!",
-            "url": presentation_url
-        })
-        
+        except Exception as e:
+            app.logger.error(f"Unexpected error: {str(e)}")
+            return jsonify({
+                "success": False,
+                "message": "An unexpected error occurred. Please try again."
+            }), 500
+            
     except Exception as e:
         app.logger.error(f"Error generating presentation: {str(e)}")
         return jsonify({
@@ -362,7 +395,6 @@ def pricing():
     return render_template('pricing.html', user=user)
 
 @app.route('/payment/create', methods=['POST'])
-@login_required
 def create_payment():
     try:
         user = User.query.get(session['user']['id'])

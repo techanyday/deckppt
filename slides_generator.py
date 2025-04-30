@@ -1,15 +1,19 @@
 import os
 import json
+import logging
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-import logging
 from flask import url_for, session
+import openai
+from openai import OpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Configure OpenAI
+openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = [
@@ -90,31 +94,60 @@ class GoogleSlidesGenerator:
     def create_presentation(self, title, topic, num_slides=5):
         """Create a new presentation with the given title and content."""
         try:
-            # Ensure num_slides is an integer and within bounds
-            try:
-                num_slides = int(num_slides)
-                num_slides = max(1, min(num_slides, 10))  # Limit between 1 and 10 slides
-            except (TypeError, ValueError):
-                num_slides = 5  # Default to 5 if invalid
+            if not self.service:
+                raise ValueError("Slides service not initialized. Call init_service first.")
                 
-            logger.info(f"Creating presentation with {num_slides} slides")
-            
             # Create new presentation
-            presentation = self.service.presentations().create(body={'title': title}).execute()
+            presentation = {
+                'title': title
+            }
+            
+            logger.info(f"Creating new presentation: {title}")
+            presentation = self.service.presentations().create(body=presentation).execute()
             presentation_id = presentation.get('presentationId')
+            
+            if not presentation_id:
+                raise ValueError("Failed to get presentation ID from Google Slides API")
+                
             logger.info(f"Created presentation with ID: {presentation_id}")
             
-            # Generate content sections (with exact slide count)
-            content_sections = self._generate_content_sections(topic, num_slides)
+            # Generate content using OpenAI
+            logger.info(f"Generating content for topic: {topic}")
+            content_sections = self._generate_content(topic, num_slides)
+            
+            if not content_sections:
+                raise ValueError("Failed to generate content sections")
+                
+            # Create title slide
+            logger.info("Creating title slide")
+            title_requests = self._create_title_slide(title)
             
             # Create content slides
-            self._create_content_slides(presentation_id, content_sections)
+            logger.info("Creating content slides")
+            content_requests = self._create_content_slides(content_sections)
             
+            # Combine all requests
+            requests = title_requests + content_requests
+            
+            # Execute the requests
+            logger.info("Executing slide creation requests")
+            body = {
+                'requests': requests
+            }
+            
+            response = self.service.presentations().batchUpdate(
+                presentationId=presentation_id,
+                body=body
+            ).execute()
+            
+            logger.info(f"Successfully updated presentation: {response}")
             return presentation_id
             
         except Exception as e:
-            logger.error(f"An error occurred: {str(e)}")
-            raise
+            logger.error(f"Error creating presentation: {str(e)}")
+            if isinstance(e, HttpError):
+                logger.error(f"Google API error response: {e.resp.status} - {e.content}")
+            return None
             
     def _apply_modern_blue_theme(self, presentation_id):
         """Apply modern blue theme to the presentation."""
@@ -143,7 +176,7 @@ class GoogleSlidesGenerator:
             body={'requests': requests}
         ).execute()
         
-    def _create_title_slide(self, presentation_id, title):
+    def _create_title_slide(self, title):
         """Create the title slide with modern design."""
         requests = [
             # Add title box with gradient background
@@ -196,138 +229,69 @@ class GoogleSlidesGenerator:
             }
         ]
         
-        self.service.presentations().batchUpdate(
-            presentationId=presentation_id,
-            body={'requests': requests}
-        ).execute()
+        return requests
         
     def _create_overview_slide(self, presentation_id, topic):
         """Create an overview slide."""
         # Implementation similar to title slide but with different layout
         pass
         
-    def _generate_content_sections(self, topic, num_sections):
-        """Generate content sections using OpenAI."""
+    def _generate_content(self, topic, num_slides):
+        """Generate content for the presentation using OpenAI."""
         try:
-            # Get OpenAI client
-            from openai import OpenAI
-            client = OpenAI()
+            logger.info(f"Generating content for {num_slides} slides")
             
-            system_prompt = f"""You are a presentation content generator. Create informative and engaging content for a presentation.
-
-            CRITICAL INSTRUCTION:
-            You MUST generate EXACTLY {num_sections} slides, no more and no less.
+            prompt = f"""Create an outline for a {num_slides}-slide presentation about {topic}.
+            For each section, provide 5 concise bullet points.
+            Format as JSON with this structure:
+            {{
+                "sections": [
+                    {{
+                        "title": "Section Title",
+                        "points": ["Point 1", "Point 2", "Point 3", "Point 4", "Point 5"]
+                    }}
+                ]
+            }}
+            """
             
-            Each slide section MUST have:
-            1. A clear, concise title (2-5 words)
-            2. Exactly 5 bullet points (5-12 words each)
-            3. Each bullet point should be a complete thought
-            4. Content should be factual and professional
+            # Make API call using the client
+            response = openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful presentation content creator."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7
+            )
             
-            Format the response as a JSON array with EXACTLY {num_sections} objects.
-            Each object must have 'title' and 'points' fields.
-            
-            Example format (showing 1 slide):
-            [
-                {{
-                    "title": "Market Overview",
-                    "points": [
-                        "Global market expected to reach $500B by 2025",
-                        "North America leads with 35% market share",
-                        "Asia Pacific showing fastest growth rate of 12%",
-                        "Top three players control 45% of market",
-                        "New entrants focus on innovative technologies"
-                    ]
-                }}
-            ]
-
-            FINAL CHECK:
-            - Your response MUST contain exactly {num_sections} slide objects
-            - Each slide MUST have exactly 5 bullet points
-            - DO NOT generate more than {num_sections} slides"""
-
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"Generate a presentation with EXACTLY {num_sections} slides about: {topic}"}
-            ]
-
-            max_retries = 3
-            retry_count = 0
-            
-            while retry_count < max_retries:
-                try:
-                    response = client.chat.completions.create(
-                        model="gpt-3.5-turbo",
-                        messages=messages,
-                        temperature=0.7,
-                        max_tokens=1000,
-                        top_p=0.9,
-                        frequency_penalty=0.2,
-                        presence_penalty=0.2
-                    )
+            # Parse response
+            content = response.choices[0].message.content
+            try:
+                data = json.loads(content)
+                sections = data.get('sections', [])
+                
+                if not sections:
+                    raise ValueError("No sections found in OpenAI response")
                     
-                    content = response.choices[0].message.content
+                if len(sections) != num_slides:
+                    raise ValueError(f"Got {len(sections)} sections, expected {num_slides}")
                     
-                    # Validate JSON response
-                    if not self._validate_json_response(content):
-                        logger.warning(f"Invalid JSON response on attempt {retry_count + 1}")
-                        retry_count += 1
-                        continue
+                # Validate each section has exactly 5 points
+                for section in sections:
+                    if len(section.get('points', [])) != 5:
+                        raise ValueError("Each section must have exactly 5 points")
                     
-                    # Parse the response
-                    content_sections = json.loads(content)
-                    
-                    # Force exact section count (failsafe)
-                    if len(content_sections) > num_sections:
-                        logger.warning(f"Truncating from {len(content_sections)} to {num_sections} sections")
-                        content_sections = content_sections[:num_sections]
-                    elif len(content_sections) < num_sections:
-                        logger.warning(f"Too few sections generated (got {len(content_sections)}, expected {num_sections})")
-                        retry_count += 1
-                        continue
-                        
-                    # Validate each section has exactly 5 points
-                    valid_sections = True
-                    for section in content_sections:
-                        if len(section.get('points', [])) != 5:
-                            valid_sections = False
-                            break
-                            
-                    if not valid_sections:
-                        logger.warning("Some sections don't have exactly 5 points")
-                        retry_count += 1
-                        continue
-                    
-                    return content_sections
-                    
-                except Exception as e:
-                    logger.error(f"Error in OpenAI request: {str(e)}")
-                    retry_count += 1
-                    if retry_count == max_retries:
-                        raise Exception("Failed to generate valid content after multiple attempts")
-                    
-            raise Exception("Failed to generate valid content after multiple attempts")
-            
+                return sections
+                
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse OpenAI response: {str(e)}")
+                raise ValueError("Invalid JSON response from OpenAI")
+                
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
             raise
-
-    def _validate_json_response(self, response_text):
-        """Validate if the JSON response is complete and well-formed."""
-        try:
-            # Check if response ends with proper JSON closure
-            if not response_text.strip().endswith(']'):
-                logger.error("Incomplete JSON response")
-                return False
             
-            # Try parsing the JSON
-            json.loads(response_text)
-            return True
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON: {str(e)}")
-            return False
-
-    def _create_content_slides(self, presentation_id, content_sections):
+    def _create_content_slides(self, content_sections):
         """Create content slides with insights."""
         try:
             # Color schemes for rotation
@@ -349,6 +313,8 @@ class GoogleSlidesGenerator:
                 }
             ]
             
+            requests = []
+            
             for i, section in enumerate(content_sections):
                 # Get color scheme for this slide
                 color_scheme = color_schemes[i % len(color_schemes)]
@@ -363,17 +329,14 @@ class GoogleSlidesGenerator:
                     }
                 }
                 
-                self.service.presentations().batchUpdate(
-                    presentationId=presentation_id,
-                    body={'requests': [slide]}
-                ).execute()
+                requests.append(slide)
                 
                 slide_id = f'slide_{i+1}'
                 title = section.get('title', '')
                 points = section.get('points', [])
                 
                 # Create requests for slide elements
-                requests = [
+                requests.extend([
                     # Add background shape
                     {
                         'createShape': {
@@ -493,7 +456,7 @@ class GoogleSlidesGenerator:
                             }
                         }
                     }
-                ]
+                ])
                 
                 # Add bullet points with proper spacing
                 bullet_text = '\n'.join(f'• {point}' for point in points)
@@ -534,13 +497,8 @@ class GoogleSlidesGenerator:
                     }
                 ])
                 
-                # Execute the requests
-                self.service.presentations().batchUpdate(
-                    presentationId=presentation_id,
-                    body={'requests': requests}
-                ).execute()
-                
             logger.info(f"Created {len(content_sections)} content slides")
+            return requests
             
         except Exception as e:
             logger.error(f"Error creating content slides: {str(e)}")
