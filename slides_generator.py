@@ -161,63 +161,37 @@ class GoogleSlidesGenerator:
     def create_presentation(self, title, topic, num_slides=5):
         """Create a new presentation with the specified title and theme."""
         try:
-            # Select a random theme
-            self.theme = SlideTheme.get_random_theme()
+            logger.info("Creating new presentation")
             
-            # Create new presentation
+            # Reset slide index
+            self.current_slide_index = 0
+            
+            # Create presentation
             presentation = {
                 'title': title
             }
             presentation = self.service.presentations().create(body=presentation).execute()
             presentation_id = presentation.get('presentationId')
             
-            if not presentation_id:
-                raise ValueError("Failed to create presentation")
-                
-            # Generate content
-            sections = self._generate_content(topic, num_slides)
+            # Get random theme
+            self.theme = SlideTheme.get_random_theme()
             
             # Create title slide
             self._create_title_slide(presentation_id, title)
             
+            # Generate content
+            sections = self._generate_content(topic, num_slides)
+            
             # Create content slides
-            current_section = None
-            section_count = 0
-            
-            for i, section in enumerate(sections):
-                # Check if we need a section break
-                if current_section != section['title'].split(' - ')[0]:
-                    current_section = section['title'].split(' - ')[0]
-                    section_count += 1
-                    if section_count > 1:
-                        self._create_section_slide(presentation_id, f"Let's Explore {current_section}")
-                
-                # Split points if more than 4
-                points = section['points']
-                if len(points) > 4:
-                    # Create first slide with first 4 points
-                    self._create_content_slide(
-                        presentation_id,
-                        section['title'],
-                        points[:4],
-                        self.get_next_layout()
-                    )
-                    # Create second slide with remaining points
-                    self._create_content_slide(
-                        presentation_id,
-                        f"{section['title']} (Continued)",
-                        points[4:],
-                        self.get_next_layout()
-                    )
+            for section in sections:
+                layout = self.get_next_layout()
+                if layout == SlideLayout.SECTION:
+                    self._create_section_slide(presentation_id, section['title'])
                 else:
-                    self._create_content_slide(
-                        presentation_id,
-                        section['title'],
-                        points,
-                        self.get_next_layout()
-                    )
+                    self._create_content_slide(presentation_id, section['title'], section['points'], layout)
             
-            return presentation_id
+            # Return presentation URL
+            return f"https://docs.google.com/presentation/d/{presentation_id}/edit"
             
         except Exception as e:
             logger.error(f"Error creating presentation: {str(e)}")
@@ -238,9 +212,11 @@ class GoogleSlidesGenerator:
         # Generate unique IDs
         title_id = self.get_unique_id('title')
         background_id = self.get_unique_id('background')
+        page_id = self.get_unique_id('page')
 
         requests = [{
             'createSlide': {
+                'objectId': page_id,
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE},
                 'placeholderIdMappings': [
                     {
@@ -254,7 +230,7 @@ class GoogleSlidesGenerator:
                 'objectId': background_id,
                 'shapeType': 'RECTANGLE',
                 'elementProperties': {
-                    'pageObjectId': 'p',
+                    'pageObjectId': page_id,
                     'size': {'width': {'magnitude': 720, 'unit': 'PT'},
                             'height': {'magnitude': 405, 'unit': 'PT'}},
                     'transform': {'scaleX': 1, 'scaleY': 1,
@@ -283,7 +259,7 @@ class GoogleSlidesGenerator:
                     'fontSize': {'magnitude': 40, 'unit': 'PT'},
                     'bold': True
                 },
-                'fields': 'foregroundColor'
+                'fields': 'foregroundColor,fontFamily,fontSize,bold'
             }
         }]
         
@@ -308,9 +284,11 @@ class GoogleSlidesGenerator:
         # Generate unique IDs
         title_id = self.get_unique_id('title')
         background_id = self.get_unique_id('background')
+        page_id = self.get_unique_id('page')
 
         requests = [{
             'createSlide': {
+                'objectId': page_id,
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.SECTION},
                 'placeholderIdMappings': [
                     {
@@ -324,7 +302,7 @@ class GoogleSlidesGenerator:
                 'objectId': background_id,
                 'shapeType': 'RECTANGLE',
                 'elementProperties': {
-                    'pageObjectId': 'p',
+                    'pageObjectId': page_id,
                     'size': {'width': {'magnitude': 720, 'unit': 'PT'},
                             'height': {'magnitude': 405, 'unit': 'PT'}},
                     'transform': {'scaleX': 1, 'scaleY': 1,
@@ -353,7 +331,7 @@ class GoogleSlidesGenerator:
                     'fontSize': {'magnitude': 36, 'unit': 'PT'},
                     'bold': True
                 },
-                'fields': 'foregroundColor'
+                'fields': 'foregroundColor,fontFamily,fontSize,bold'
             }
         }]
         
@@ -384,12 +362,14 @@ class GoogleSlidesGenerator:
         left_column_id = self.get_unique_id('leftColumn')
         right_column_id = self.get_unique_id('rightColumn')
         body_id = self.get_unique_id('body')
+        page_id = self.get_unique_id('page')
 
         requests = []
         
         # Create slide with layout
         slide_request = {
             'createSlide': {
+                'objectId': page_id,
                 'slideLayoutReference': {'predefinedLayout': layout},
                 'placeholderIdMappings': [
                     {
@@ -433,7 +413,7 @@ class GoogleSlidesGenerator:
                     'objectId': background_id,
                     'shapeType': 'RECTANGLE',
                     'elementProperties': {
-                        'pageObjectId': 'p',
+                        'pageObjectId': page_id,
                         'size': {'width': {'magnitude': 720, 'unit': 'PT'},
                                 'height': {'magnitude': 405, 'unit': 'PT'}},
                         'transform': {'scaleX': 1, 'scaleY': 1,
@@ -469,7 +449,7 @@ class GoogleSlidesGenerator:
                         'fontSize': {'magnitude': 24, 'unit': 'PT'},
                         'bold': True
                     },
-                    'fields': 'foregroundColor'
+                    'fields': 'foregroundColor,fontFamily,fontSize,bold'
                 }
             }
         ])
@@ -492,7 +472,7 @@ class GoogleSlidesGenerator:
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
-                        'fields': 'foregroundColor'
+                        'fields': 'foregroundColor,fontFamily,fontSize'
                     }
                 }
             ])
@@ -513,7 +493,7 @@ class GoogleSlidesGenerator:
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
-                        'fields': 'foregroundColor'
+                        'fields': 'foregroundColor,fontFamily,fontSize'
                     }
                 }
             ])
@@ -534,7 +514,7 @@ class GoogleSlidesGenerator:
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
-                        'fields': 'foregroundColor'
+                        'fields': 'foregroundColor,fontFamily,fontSize'
                     }
                 }
             ])
