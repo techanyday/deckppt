@@ -32,6 +32,7 @@ class SlideLayout:
     SECTION_HEADER = 'SECTION_HEADER'
     TITLE_ONLY = 'TITLE_ONLY'
     BLANK = 'BLANK'
+    BIG_NUMBER = 'BIG_NUMBER'
 
 class PlaceholderType:
     """Slide placeholder types."""
@@ -41,83 +42,33 @@ class PlaceholderType:
     SUBTITLE = 'SUBTITLE'
     SLIDE_NUMBER = 'SLIDE_NUMBER'
 
-class SlideTheme:
-    """Theme colors and styles."""
-    THEMES = [
-        {
-            'name': 'Modern Blue',
-            'colors': {
-                'primary': {'solid': {'color': {'rgbColor': {'red': 0.27, 'green': 0.49, 'blue': 0.75}}}},
-                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
-            }
-        },
-        {
-            'name': 'Forest Green',
-            'colors': {
-                'primary': {'solid': {'color': {'rgbColor': {'red': 0.22, 'green': 0.60, 'blue': 0.40}}}},
-                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
-            }
-        },
-        {
-            'name': 'Ocean Breeze',
-            'colors': {
-                'primary': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.4, 'blue': 0.8}}}},
-                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
-            }
-        },
-        {
-            'name': 'Lavender Dream',
-            'colors': {
-                'primary': {'solid': {'color': {'rgbColor': {'red': 0.4, 'green': 0.2, 'blue': 0.8}}}},
-                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
-            }
-        },
-        {
-            'name': 'Forest Fresh',
-            'colors': {
-                'primary': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}}},
-                'text': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}}
-            }
-        }
-    ]
-    
-    @classmethod
-    def get_random_theme(cls):
-        """Get a random theme."""
-        return random.choice(cls.THEMES)
-
 class GoogleSlidesGenerator:
-    def __init__(self):
-        """Initialize the Google Slides generator."""
-        self.service = None
-        self.theme = None
-        self.current_slide_index = 0
-        self.layouts = [
-            SlideLayout.TITLE_AND_BODY,
-            SlideLayout.TITLE_AND_TWO_COLUMNS,
-            SlideLayout.TITLE_AND_BODY,
-            SlideLayout.SECTION_HEADER
-        ]
-        
-    def init_service(self, credentials_dict=None):
-        """Initialize the Google Slides service with credentials."""
+    def __init__(self, credentials_path=None):
+        self.service = self._create_slides_service(credentials_path)
+        # Modern color palette
+        self.theme = {
+            'primary': {'r': 0.27, 'g': 0.36, 'b': 0.87},  # Royal Blue
+            'secondary': {'r': 0.95, 'g': 0.49, 'b': 0.33},  # Coral
+            'accent': {'r': 0.33, 'g': 0.78, 'b': 0.69},  # Teal
+            'background': {'r': 0.98, 'g': 0.98, 'b': 0.98},  # Light Gray
+            'text': {'r': 0.13, 'g': 0.13, 'b': 0.13}  # Dark Gray
+        }
+
+    def _create_slides_service(self, credentials_path):
         try:
-            if not credentials_dict:
+            if not credentials_path:
                 raise ValueError("No credentials provided")
                 
-            # Create credentials from dictionary
-            credentials = Credentials(
-                token=credentials_dict['token'],
-                refresh_token=credentials_dict['refresh_token'],
-                token_uri=credentials_dict['token_uri'],
-                client_id=credentials_dict['client_id'],
-                client_secret=credentials_dict['client_secret'],
-                scopes=credentials_dict['scopes']
+            # Create credentials from file
+            credentials = Credentials.from_service_account_file(
+                credentials_path, scopes=SCOPES
             )
             
             # Build the service
-            self.service = build('slides', 'v1', credentials=credentials)
+            service = build('slides', 'v1', credentials=credentials)
             logger.info("Successfully initialized Slides service")
+            
+            return service
             
         except Exception as e:
             logger.error(f"Error initializing service: {str(e)}")
@@ -162,250 +113,222 @@ class GoogleSlidesGenerator:
             logger.error(f"Error getting credentials from code: {str(e)}")
             raise
             
-    def get_next_layout(self):
-        """Get the next layout in rotation."""
-        layout = self.layouts[self.current_slide_index]
-        self.current_slide_index = (self.current_slide_index + 1) % len(self.layouts)
-        return layout
-
     def get_unique_id(self, base_id):
         """Generate a unique ID for a slide element."""
         unique_id = f"{base_id}_{uuid.uuid4().hex[:8]}"
         return unique_id
 
-    def create_presentation(self, title, topic, num_slides=5):
-        """Create a new presentation with the specified title and theme."""
-        try:
-            logger.info("Creating new presentation")
-            
-            # Reset slide index
-            self.current_slide_index = 0
-            
-            # Create presentation
-            presentation = {
-                'title': title
-            }
-            presentation = self.service.presentations().create(body=presentation).execute()
-            presentation_id = presentation.get('presentationId')
-            
-            if not presentation_id:
-                raise ValueError("Failed to create presentation - no ID returned")
-            
-            # Get random theme
-            self.theme = SlideTheme.get_random_theme()
-            
+    def _create_title_slide(self, presentation_id, title, subtitle="Generated by DeckSky"):
+        """Create an attractive title slide."""
+        slide_id = f"title_{uuid.uuid4().hex[:8]}"
+        requests = [
             # Create title slide
-            self._create_title_slide(presentation_id, title)
-            
-            # Generate content
-            sections = self._generate_content(topic, num_slides)
-            
-            # Create content slides
-            self._create_content_slides(presentation_id, sections)
-            
-            # Get the presentation metadata to verify it exists
-            presentation = self.service.presentations().get(presentationId=presentation_id).execute()
-            
-            # Return presentation URL
-            return {
-                'id': presentation_id,
-                'url': f"https://docs.google.com/presentation/d/{presentation_id}/edit",
-                'title': presentation.get('title', title)
-            }
-            
-        except Exception as e:
-            logger.error(f"Error creating presentation: {str(e)}")
-            raise
-
-    def _create_title_slide(self, presentation_id, title):
-        """Create the title slide with theme colors."""
-        # Convert theme colors to API format
-        background_fill = {
-            'solidFill': {
-                'color': self.theme['colors']['primary']['solid']['color']
-            }
-        }
-        text_color = {
-            'opaqueColor': self.theme['colors']['primary']['solid']['color']
-        }
-
-        # Generate unique IDs
-        title_id = self.get_unique_id('title')
-        background_id = self.get_unique_id('background')
-        page_id = self.get_unique_id('page')
-
-        requests = [{
-            'createSlide': {
-                'objectId': page_id,
-                'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE},
-                'placeholderIdMappings': [
-                    {
-                        'layoutPlaceholder': {'type': PlaceholderType.CENTERED_TITLE},
-                        'objectId': title_id
-                    }
-                ]
-            }
-        }, {
-            'createShape': {
-                'objectId': background_id,
-                'shapeType': 'RECTANGLE',
-                'elementProperties': {
-                    'pageObjectId': page_id,
-                    'size': {'width': {'magnitude': 720, 'unit': 'PT'},
-                            'height': {'magnitude': 405, 'unit': 'PT'}},
-                    'transform': {'scaleX': 1, 'scaleY': 1,
-                                'translateX': 0, 'translateY': 0, 'unit': 'PT'}
-                }
-            }
-        }, {
-            'updateShapeProperties': {
-                'objectId': background_id,
-                'shapeProperties': {
-                    'shapeBackgroundFill': background_fill
-                },
-                'fields': 'shapeBackgroundFill'
-            }
-        }, {
-            'insertText': {
-                'objectId': title_id,
-                'text': title
-            }
-        }, {
-            'updateTextStyle': {
-                'objectId': title_id,
-                'style': {
-                    'foregroundColor': text_color,
-                    'fontFamily': 'Montserrat',
-                    'fontSize': {'magnitude': 40, 'unit': 'PT'},
-                    'bold': True
-                },
-                'fields': 'foregroundColor,fontFamily,fontSize,bold'
-            }
-        }]
-        
-        self.service.presentations().batchUpdate(
-            presentationId=presentation_id,
-            body={'requests': requests}
-        ).execute()
-        self.current_slide_index += 1
-
-    def _create_content_slides(self, presentation_id, sections):
-        """Create content slides with proper error handling and validation."""
-        requests = []
-        
-        for index, section in enumerate(sections):
-            title = section.get('title', '').strip()
-            points = [p.strip() for p in section.get('points', []) if p.strip()]
-            
-            # Skip invalid sections
-            if not title or len(points) < 3:
-                logger.warning(f"Skipping slide #{index + 1} due to insufficient content")
-                continue
-                
-            # Generate unique IDs
-            slide_id = self.get_unique_id('slide')
-            title_id = self.get_unique_id('title')
-            body_id = self.get_unique_id('body')
-            
-            # Create slide
-            requests.append({
+            {
                 'createSlide': {
                     'objectId': slide_id,
-                    'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE_AND_BODY},
+                    'slideLayoutReference': {'predefinedLayout': 'TITLE'},
                     'placeholderIdMappings': [
                         {
-                            'layoutPlaceholder': {'type': PlaceholderType.TITLE},
-                            'objectId': title_id
+                            'layoutPlaceholder': {'type': 'TITLE', 'index': 0},
+                            'objectId': f"{slide_id}_title"
                         },
                         {
-                            'layoutPlaceholder': {'type': PlaceholderType.BODY},
-                            'objectId': body_id
+                            'layoutPlaceholder': {'type': 'SUBTITLE', 'index': 1},
+                            'objectId': f"{slide_id}_subtitle"
                         }
                     ]
                 }
-            })
-            
+            },
+            # Set slide background
+            {
+                'updatePageProperties': {
+                    'objectId': slide_id,
+                    'pageProperties': {
+                        'pageBackgroundFill': {
+                            'solidFill': {
+                                'color': {
+                                    'rgbColor': self.theme['background']
+                                }
+                            }
+                        }
+                    },
+                    'fields': 'pageBackgroundFill'
+                }
+            },
             # Insert title
-            requests.append({
+            {
                 'insertText': {
-                    'objectId': title_id,
+                    'objectId': f"{slide_id}_title",
                     'text': title
                 }
-            })
-            
+            },
             # Style title
-            requests.append({
+            {
                 'updateTextStyle': {
-                    'objectId': title_id,
+                    'objectId': f"{slide_id}_title",
                     'style': {
                         'foregroundColor': {
-                            'opaqueColor': {
-                                'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}
-                            }
+                            'opaqueColor': {'rgbColor': self.theme['primary']}
+                        },
+                        'fontSize': {'magnitude': 40, 'unit': 'PT'},
+                        'bold': True,
+                        'fontFamily': 'Google Sans'
+                    },
+                    'textRange': {'type': 'ALL'},
+                    'fields': 'foregroundColor,fontSize,bold,fontFamily'
+                }
+            },
+            # Insert subtitle
+            {
+                'insertText': {
+                    'objectId': f"{slide_id}_subtitle",
+                    'text': subtitle
+                }
+            },
+            # Style subtitle
+            {
+                'updateTextStyle': {
+                    'objectId': f"{slide_id}_subtitle",
+                    'style': {
+                        'foregroundColor': {
+                            'opaqueColor': {'rgbColor': self.theme['secondary']}
                         },
                         'fontSize': {'magnitude': 24, 'unit': 'PT'},
-                        'bold': True
+                        'fontFamily': 'Google Sans'
                     },
-                    'fields': 'foregroundColor,fontSize,bold'
+                    'textRange': {'type': 'ALL'},
+                    'fields': 'foregroundColor,fontSize,fontFamily'
                 }
-            })
-            
-            # Format bullet points
-            bullet_text = ''
-            for point in points:
-                point = point.strip()
-                if not point.endswith(('.', '!', '?')):
-                    point += '.'
-                bullet_text += f"{point}\n"
-            
-            # Insert bullet points
-            requests.append({
+            }
+        ]
+        
+        return requests
+
+    def _get_slide_layout(self, section_index, total_sections, title):
+        """Determine appropriate slide layout based on content and position."""
+        title_lower = title.lower()
+        
+        if section_index == 0:
+            return 'SECTION_HEADER'  # Introduction
+        elif section_index == total_sections - 1:
+            return 'BIG_NUMBER'  # Conclusion/Summary
+        elif any(word in title_lower for word in ['overview', 'summary', 'key points']):
+            return 'TITLE_AND_TWO_COLUMNS'
+        elif len(title_lower.split()) <= 3:  # Short titles often indicate section breaks
+            return 'SECTION_HEADER'
+        else:
+            return 'TITLE_AND_BODY'  # Default layout
+
+    def _create_content_slide(self, presentation_id, title, points, section_index, total_sections):
+        """Create a content slide with dynamic layout and styling."""
+        if not points or len(points) < 2:  # Skip if insufficient content
+            return []
+
+        slide_id = f"slide_{uuid.uuid4().hex[:8]}"
+        layout = self._get_slide_layout(section_index, total_sections, title)
+        
+        requests = [
+            # Create slide with dynamic layout
+            {
+                'createSlide': {
+                    'objectId': slide_id,
+                    'slideLayoutReference': {'predefinedLayout': layout},
+                    'placeholderIdMappings': [
+                        {
+                            'layoutPlaceholder': {'type': 'TITLE', 'index': 0},
+                            'objectId': f"{slide_id}_title"
+                        },
+                        {
+                            'layoutPlaceholder': {'type': 'BODY', 'index': 0},
+                            'objectId': f"{slide_id}_body"
+                        }
+                    ]
+                }
+            },
+            # Set slide background with subtle gradient
+            {
+                'updatePageProperties': {
+                    'objectId': slide_id,
+                    'pageProperties': {
+                        'pageBackgroundFill': {
+                            'solidFill': {
+                                'color': {
+                                    'rgbColor': self.theme['background']
+                                },
+                                'alpha': 0.95
+                            }
+                        }
+                    },
+                    'fields': 'pageBackgroundFill'
+                }
+            }
+        ]
+
+        # Add title
+        requests.extend([
+            {
                 'insertText': {
-                    'objectId': body_id,
-                    'text': bullet_text.strip()
+                    'objectId': f"{slide_id}_title",
+                    'text': title
                 }
-            })
-            
-            # Style bullet points
-            requests.append({
+            },
+            {
                 'updateTextStyle': {
-                    'objectId': body_id,
+                    'objectId': f"{slide_id}_title",
                     'style': {
                         'foregroundColor': {
-                            'opaqueColor': {
-                                'rgbColor': {'red': 0.3, 'green': 0.3, 'blue': 0.3}
-                            }
+                            'opaqueColor': {'rgbColor': self.theme['primary']}
                         },
-                        'fontSize': {'magnitude': 18, 'unit': 'PT'}
+                        'fontSize': {'magnitude': 28, 'unit': 'PT'},
+                        'bold': True,
+                        'fontFamily': 'Google Sans'
                     },
-                    'fields': 'foregroundColor,fontSize'
+                    'textRange': {'type': 'ALL'},
+                    'fields': 'foregroundColor,fontSize,bold,fontFamily'
                 }
-            })
-            
-            # Add bullets
-            requests.append({
+            }
+        ])
+
+        # Format bullet points
+        bullet_text = ''
+        for point in points:
+            point = point.strip()
+            if not point.endswith(('.', '!', '?')):
+                point += '.'
+            bullet_text += f"{point}\n"
+
+        # Add content
+        requests.extend([
+            {
+                'insertText': {
+                    'objectId': f"{slide_id}_body",
+                    'text': bullet_text
+                }
+            },
+            {
+                'updateTextStyle': {
+                    'objectId': f"{slide_id}_body",
+                    'style': {
+                        'foregroundColor': {
+                            'opaqueColor': {'rgbColor': self.theme['text']}
+                        },
+                        'fontSize': {'magnitude': 18, 'unit': 'PT'},
+                        'fontFamily': 'Google Sans'
+                    },
+                    'textRange': {'type': 'ALL'},
+                    'fields': 'foregroundColor,fontSize,fontFamily'
+                }
+            },
+            {
                 'createParagraphBullets': {
-                    'objectId': body_id,
+                    'objectId': f"{slide_id}_body",
                     'textRange': {'type': 'ALL'},
                     'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
                 }
-            })
-            
-            self.current_slide_index += 1
-        
-        # Execute requests if any valid slides were created
-        if requests:
-            try:
-                self.service.presentations().batchUpdate(
-                    presentationId=presentation_id,
-                    body={'requests': requests}
-                ).execute()
-            except Exception as e:
-                logger.error(f"Error creating slides: {str(e)}")
-                raise
-        else:
-            logger.error("No valid slides to create")
-            raise ValueError("Failed to create any valid slides")
+            }
+        ])
+
+        return requests
 
     def _generate_content(self, topic, num_slides):
         """Generate content for the presentation using OpenAI."""
@@ -490,3 +413,43 @@ class GoogleSlidesGenerator:
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
             raise ValueError("Failed to generate presentation content")
+
+    def create_presentation(self, title, topic, num_slides=5):
+        """Create a presentation with consistent styling and layout."""
+        try:
+            # Create new presentation
+            presentation = {'title': title}
+            presentation = self.service.presentations().create(body=presentation).execute()
+            presentation_id = presentation.get('presentationId')
+
+            # Generate content
+            sections = self._generate_content(topic, num_slides)
+            if not sections:
+                raise ValueError("No content generated")
+
+            # Start with requests for title slide
+            requests = self._create_title_slide(presentation_id, title)
+
+            # Add content slides
+            for i, section in enumerate(sections):
+                if not section.get('points'):  # Skip sections without content
+                    continue
+                slide_requests = self._create_content_slide(
+                    presentation_id,
+                    section['title'],
+                    section['points'],
+                    i,
+                    len(sections)
+                )
+                requests.extend(slide_requests)
+
+            # Execute all requests
+            body = {'requests': requests}
+            response = self.service.presentations().batchUpdate(
+                presentationId=presentation_id, body=body).execute()
+
+            return presentation_id
+
+        except Exception as e:
+            logger.error(f"Error creating presentation: {str(e)}")
+            raise ValueError("Failed to create presentation")
