@@ -297,7 +297,7 @@ def generate_presentation():
             return jsonify({
                 "success": False,
                 "message": "Please authenticate with Google first",
-                "redirect": url_for('auth.google')
+                "redirect": url_for('google_auth')
             }), 401
 
         try:
@@ -344,7 +344,7 @@ def generate_presentation():
                 return jsonify({
                     "success": False,
                     "message": "Your Google authentication has expired. Please sign in again.",
-                    "redirect": url_for('auth.google')
+                    "redirect": url_for('google_auth')
                 }), 401
             return jsonify({
                 "success": False,
