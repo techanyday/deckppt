@@ -11,6 +11,9 @@ import tempfile
 import shutil
 from slides_generator import GoogleSlidesGenerator
 import secrets
+import random
+import string
+from google_auth_oauthlib.flow import Flow
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +55,24 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Create database tables
 with app.app_context():
     db.create_all()
+
+# OAuth 2.0 configuration
+GOOGLE_CLIENT_CONFIG = {
+    'web': {
+        'client_id': os.getenv('GOOGLE_CLIENT_ID'),
+        'client_secret': os.getenv('GOOGLE_CLIENT_SECRET'),
+        'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+        'token_uri': 'https://oauth2.googleapis.com/token',
+        'redirect_uris': [os.getenv('OAUTH_REDIRECT_URI')],
+    }
+}
+
+# Configure OAuth 2.0 flow
+flow = Flow.from_client_config(
+    GOOGLE_CLIENT_CONFIG,
+    scopes=['https://www.googleapis.com/auth/presentations'],
+    redirect_uri=os.getenv('OAUTH_REDIRECT_URI')
+)
 
 @app.before_request
 def before_request():
@@ -137,12 +158,34 @@ def logout():
     session.pop('user', None)
     return redirect(url_for('login'))
 
+@app.route('/auth/google')
+def google_auth():
+    """Start the Google OAuth flow."""
+    try:
+        # Generate state token
+        state = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
+        session['oauth_state'] = state
+        
+        # Get authorization URL
+        auth_url = flow.authorization_url(
+            state=state,
+            access_type='offline',
+            include_granted_scopes='true'
+        )[0]
+        
+        return redirect(auth_url)
+    except Exception as e:
+        app.logger.error(f"Error starting OAuth flow: {str(e)}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to start authentication"
+        }), 500
+
 @app.route('/generate', methods=['POST'])
-@login_required
 def generate_presentation():
     try:
         # Get form data
-        topic = request.form.get('topic', '').strip()  
+        topic = request.form.get('topic', '').strip()
         num_slides = request.form.get('num_slides', '5')
         
         # Validate input
@@ -165,21 +208,27 @@ def generate_presentation():
                 "message": "Invalid number of slides"
             }), 400
         
-        # Initialize slides service with stored credentials
-        if 'slides_credentials' not in session:
+        # Check if user is authenticated
+        if 'google_token' not in session:
+            # Store presentation details in session
+            session['pending_topic'] = topic
+            session['pending_num_slides'] = num_slides
+            
+            # Return auth URL
             return jsonify({
                 "success": False,
-                "message": "Please authenticate with Google first"
+                "message": "Please authenticate with Google first",
+                "redirect": url_for('google_auth')
             }), 401
 
-        # Initialize slides generator
+        # Initialize slides generator with stored credentials
         generator = GoogleSlidesGenerator()
-        generator.init_service()
+        generator.init_service(session['google_token'])
         
-        # Create presentation with topic as both title and content topic
+        # Create presentation
         presentation_id = generator.create_presentation(
-            title=topic,  
-            topic=topic,  
+            title=topic,
+            topic=topic,
             num_slides=num_slides
         )
         
@@ -207,43 +256,54 @@ def generate_presentation():
 
 @app.route('/oauth2callback')
 def oauth2callback():
+    """Handle the OAuth 2.0 callback from Google."""
     try:
-        # Get the authorization code from the callback
+        # Get the authorization code
         code = request.args.get('code')
         state = request.args.get('state')
         
-        if not code:
-            app.logger.error("No code received in callback")
-            return jsonify({"error": "No authorization code received"}), 400
+        # Validate state token
+        if state != session.get('oauth_state'):
+            return 'Invalid state token', 401
             
-        # Get credentials from the authorization code
-        try:
-            credentials = slides.get_credentials_from_code(code, state)
+        # Exchange code for credentials
+        flow.fetch_token(code=code)
+        credentials = flow.credentials
+        
+        # Store credentials in session
+        session['google_token'] = {
+            'token': credentials.token,
+            'refresh_token': credentials.refresh_token,
+            'token_uri': credentials.token_uri,
+            'client_id': credentials.client_id,
+            'client_secret': credentials.client_secret,
+            'scopes': credentials.scopes
+        }
+        
+        # Check if we have pending presentation to generate
+        if 'pending_topic' in session and 'pending_num_slides' in session:
+            topic = session.pop('pending_topic')
+            num_slides = session.pop('pending_num_slides')
             
-            # Store credentials in session
-            session['slides_credentials'] = {
-                'token': credentials.token,
-                'refresh_token': credentials.refresh_token,
-                'token_uri': credentials.token_uri,
-                'client_id': credentials.client_id,
-                'client_secret': credentials.client_secret,
-                'scopes': credentials.scopes
-            }
+            # Initialize generator and create presentation
+            generator = GoogleSlidesGenerator()
+            generator.init_service(session['google_token'])
             
-            return redirect(url_for('index'))
+            presentation_id = generator.create_presentation(
+                title=topic,
+                topic=topic,
+                num_slides=num_slides
+            )
             
-        except Exception as e:
-            app.logger.error(f"Error getting credentials: {str(e)}")
-            # If there's a scope mismatch, try to get a new authorization URL
-            if "Scope has changed" in str(e):
-                auth_url, state = slides.get_authorization_url()
-                session['oauth_state'] = state
-                return redirect(auth_url)
-            raise
-            
+            if presentation_id:
+                presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
+                return redirect(presentation_url)
+        
+        return redirect(url_for('index'))
+        
     except Exception as e:
         app.logger.error(f"OAuth callback error: {str(e)}")
-        return jsonify({"error": str(e)}), 500
+        return 'Authentication failed', 500
 
 @app.route('/download/<filename>')
 @login_required

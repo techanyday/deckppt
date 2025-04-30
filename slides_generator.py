@@ -20,19 +20,34 @@ SCOPES = [
 ]
 
 class GoogleSlidesGenerator:
-    def __init__(self, client_secrets_file=None):
+    def __init__(self):
+        """Initialize the Google Slides generator."""
         self.service = None
         
-        # For production (Render), load from environment variable
-        if os.environ.get('GOOGLE_SLIDES_CREDENTIALS'):
-            self.client_secrets = json.loads(os.environ.get('GOOGLE_SLIDES_CREDENTIALS'))
-        # For local development, load from file
-        elif client_secrets_file and os.path.exists(client_secrets_file):
-            with open(client_secrets_file, 'r') as f:
-                self.client_secrets = json.load(f)
-        else:
-            raise ValueError("No credentials found. Please provide either a client_secrets_file or set GOOGLE_SLIDES_CREDENTIALS environment variable.")
-        
+    def init_service(self, credentials_dict=None):
+        """Initialize the Google Slides service with credentials."""
+        try:
+            if not credentials_dict:
+                raise ValueError("No credentials provided")
+                
+            # Create credentials from dictionary
+            credentials = Credentials(
+                token=credentials_dict['token'],
+                refresh_token=credentials_dict['refresh_token'],
+                token_uri=credentials_dict['token_uri'],
+                client_id=credentials_dict['client_id'],
+                client_secret=credentials_dict['client_secret'],
+                scopes=credentials_dict['scopes']
+            )
+            
+            # Build the service
+            self.service = build('slides', 'v1', credentials=credentials)
+            logger.info("Successfully initialized Slides service")
+            
+        except Exception as e:
+            logger.error(f"Error initializing service: {str(e)}")
+            raise
+            
     def get_authorization_url(self, state=None):
         """Get the authorization URL for OAuth2 flow."""
         flow = Flow.from_client_config(
@@ -70,28 +85,6 @@ class GoogleSlidesGenerator:
             
         except Exception as e:
             logger.error(f"Error getting credentials from code: {str(e)}")
-            raise
-            
-    def init_service(self, credentials_dict):
-        """Initialize the Slides service with credentials."""
-        try:
-            # Convert dictionary back to Credentials object
-            credentials = Credentials(
-                token=credentials_dict['token'],
-                refresh_token=credentials_dict['refresh_token'],
-                token_uri=credentials_dict['token_uri'],
-                client_id=credentials_dict['client_id'],
-                client_secret=credentials_dict['client_secret'],
-                scopes=credentials_dict['scopes']
-            )
-            
-            # Build the service
-            self.service = build('slides', 'v1', credentials=credentials)
-            logger.info("Successfully initialized Slides service")
-            return self.service
-            
-        except Exception as e:
-            logger.error(f"Error initializing service: {str(e)}")
             raise
             
     def create_presentation(self, title, topic, num_slides=5):
