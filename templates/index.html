@@ -199,9 +199,12 @@
             e.preventDefault();
             
             // Show loading state
-            document.getElementById('submitBtn').disabled = true;
-            document.getElementById('submitBtn').innerHTML = 'Creating presentation...';
-            document.getElementById('result').innerHTML = '';
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('result');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Creating presentation...';
+            resultDiv.innerHTML = '';
             
             const formData = new FormData(this);
             
@@ -211,43 +214,84 @@
             })
             .then(response => response.json())
             .then(data => {
-                document.getElementById('submitBtn').disabled = false;
-                document.getElementById('submitBtn').innerHTML = 'Generate Presentation';
-                
                 if (data.redirect) {
+                    // Store form data in localStorage before redirect
+                    localStorage.setItem('pendingTopic', formData.get('topic'));
+                    localStorage.setItem('pendingNumSlides', formData.get('num_slides'));
+                    
+                    // Redirect to Google OAuth
                     window.location.href = data.redirect;
                     return;
                 }
                 
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Generate Presentation';
+                
                 if (data.success) {
-                    const resultDiv = document.getElementById('result');
                     resultDiv.innerHTML = `
-                        <div class="alert alert-success">
+                        <div class="alert alert-success mt-3">
                             ${data.message}
-                            <div class="mt-3">
-                                <a href="${data.presentation_url}" target="_blank" class="btn btn-primary">
+                            <div class="mt-2">
+                                <a href="${data.url}" target="_blank" class="btn btn-primary">
                                     View Presentation
                                 </a>
                             </div>
                         </div>
                     `;
+                    
+                    // Clear any stored pending data
+                    localStorage.removeItem('pendingTopic');
+                    localStorage.removeItem('pendingNumSlides');
                 } else {
-                    document.getElementById('result').innerHTML = `
-                        <div class="alert alert-danger">
+                    resultDiv.innerHTML = `
+                        <div class="alert alert-danger mt-3">
                             ${data.message}
                         </div>
                     `;
                 }
             })
             .catch(error => {
-                document.getElementById('submitBtn').disabled = false;
-                document.getElementById('submitBtn').innerHTML = 'Generate Presentation';
-                document.getElementById('result').innerHTML = `
-                    <div class="alert alert-danger">
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Generate Presentation';
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger mt-3">
                         An error occurred. Please try again.
                     </div>
                 `;
             });
+        });
+        
+        // Check for pending presentation after OAuth redirect
+        window.addEventListener('load', function() {
+            const pendingTopic = localStorage.getItem('pendingTopic');
+            const pendingNumSlides = localStorage.getItem('pendingNumSlides');
+            
+            if (pendingTopic && pendingNumSlides) {
+                // Auto-submit the form with stored values
+                const form = document.getElementById('generateForm');
+                const formData = new FormData(form);
+                formData.set('topic', pendingTopic);
+                formData.set('num_slides', pendingNumSlides);
+                
+                fetch('/generate', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        window.location.href = data.url;
+                    }
+                    // Clear stored data regardless of success
+                    localStorage.removeItem('pendingTopic');
+                    localStorage.removeItem('pendingNumSlides');
+                })
+                .catch(() => {
+                    // Clear stored data on error
+                    localStorage.removeItem('pendingTopic');
+                    localStorage.removeItem('pendingNumSlides');
+                });
+            }
         });
     </script>
 </body>
