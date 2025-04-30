@@ -142,7 +142,7 @@ def logout():
 def generate_presentation():
     try:
         # Get form data
-        topic = request.form.get('title', '').strip()  # Using 'title' as both title and topic
+        topic = request.form.get('topic', '').strip()  
         num_slides = request.form.get('num_slides', '5')
         
         # Validate input
@@ -178,8 +178,8 @@ def generate_presentation():
         
         # Create presentation with topic as both title and content topic
         presentation_id = generator.create_presentation(
-            title=topic,  # Use topic as title
-            topic=topic,  # Use same topic for content generation
+            title=topic,  
+            topic=topic,  
             num_slides=num_slides
         )
         
