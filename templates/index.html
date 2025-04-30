@@ -133,7 +133,7 @@
         {% endif %}
 
         <div class="form-container">
-            <form action="{{ url_for('generate_presentation') }}" method="POST" id="generateForm">
+            <form action="{{ url_for('generate_presentation') }}" method="POST" id="presentation-form">
                 <div class="mb-3">
                     <label for="topic" class="form-label">Enter a title or a prompt</label>
                     <input type="text" class="form-control" id="topic" name="topic" required
@@ -156,19 +156,11 @@
                     <input type="number" class="form-control" id="num_slides" name="num_slides" 
                            value="5" min="1" max="{% if user.current_plan.value == 'free' %}5{% else %}10{% endif %}">
                     <div class="form-text">Recommended: 5-10 slides for optimal content</div>
-                    <div id="slides-upgrade-prompt" class="alert alert-info mt-2" style="display: none;">
-                        <p class="mb-2">To generate more than 5 slides, please upgrade.</p>
-                        <p class="mb-3">You can unlock a full presentation (up to 10 slides) for just $0.99,<br>
-                        or get a monthly plan for $2.99 and create up to 50 presentations every month!</p>
-                        <div class="d-flex gap-2">
-                            <a href="{{ url_for('pricing', plan='pay_per_deck') }}" class="btn btn-primary">Buy Deck ($0.99)</a>
-                            <a href="{{ url_for('pricing', plan='monthly') }}" class="btn btn-success">Subscribe Now ($2.99/month)</a>
-                        </div>
-                    </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary w-100" id="submitBtn">Generate Presentation</button>
-                <div id="result"></div>
+                <button type="submit" class="btn btn-primary w-100" id="submit-btn">Create Presentation</button>
+                <div id="error-message" style="display: none;"></div>
+                <div id="success-message" style="display: none;"></div>
             </form>
         </div>
 
@@ -195,103 +187,68 @@
     </div>
 
     <script>
-        document.getElementById('generateForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('presentation-form');
+            const submitBtn = document.getElementById('submit-btn');
+            const errorDiv = document.getElementById('error-message');
+            const successDiv = document.getElementById('success-message');
             
-            // Show loading state
-            const submitBtn = document.getElementById('submitBtn');
-            const resultDiv = document.getElementById('result');
-            
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = 'Creating presentation...';
-            resultDiv.innerHTML = '';
-            
-            const formData = new FormData(this);
-            
-            fetch('/generate', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.redirect) {
-                    // Store form data in localStorage before redirect
-                    localStorage.setItem('pendingTopic', formData.get('topic'));
-                    localStorage.setItem('pendingNumSlides', formData.get('num_slides'));
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                // Clear previous messages
+                errorDiv.style.display = 'none';
+                successDiv.style.display = 'none';
+                
+                // Show loading state
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+                
+                try {
+                    const response = await fetch('/generate', {
+                        method: 'POST',
+                        body: new FormData(form)
+                    });
                     
-                    // Redirect to Google OAuth
-                    window.location.href = '/auth/google';
-                    return;
-                }
-                
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Generate Presentation';
-                
-                if (data.success) {
-                    resultDiv.innerHTML = `
-                        <div class="alert alert-success mt-3">
-                            ${data.message}
-                            <div class="mt-2">
-                                <a href="${data.url}" target="_blank" class="btn btn-primary">
-                                    View Presentation
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        // Show success message
+                        successDiv.innerHTML = `
+                            <div class="alert alert-success">
+                                ${data.message}<br>
+                                <a href="${data.presentation.url}" target="_blank" class="btn btn-primary mt-2">
+                                    Open Presentation
                                 </a>
                             </div>
-                        </div>
-                    `;
-                    
-                    // Clear any stored pending data
-                    localStorage.removeItem('pendingTopic');
-                    localStorage.removeItem('pendingNumSlides');
-                } else {
-                    resultDiv.innerHTML = `
-                        <div class="alert alert-danger mt-3">
-                            ${data.message}
-                        </div>
-                    `;
-                }
-            })
-            .catch(error => {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Generate Presentation';
-                resultDiv.innerHTML = `
-                    <div class="alert alert-danger mt-3">
-                        An error occurred. Please try again.
-                    </div>
-                `;
-            });
-        });
-        
-        // Check for pending presentation after OAuth redirect
-        window.addEventListener('load', function() {
-            const pendingTopic = localStorage.getItem('pendingTopic');
-            const pendingNumSlides = localStorage.getItem('pendingNumSlides');
-            
-            if (pendingTopic && pendingNumSlides) {
-                // Auto-submit the form with stored values
-                const form = document.getElementById('generateForm');
-                const formData = new FormData(form);
-                formData.set('topic', pendingTopic);
-                formData.set('num_slides', pendingNumSlides);
-                
-                fetch('/generate', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        window.location.href = data.url;
+                        `;
+                        successDiv.style.display = 'block';
+                        
+                        // Clear form
+                        form.reset();
+                    } else {
+                        // Show error message
+                        errorDiv.innerHTML = `
+                            <div class="alert alert-danger">
+                                ${data.error || 'Failed to create presentation. Please try again.'}
+                            </div>
+                        `;
+                        errorDiv.style.display = 'block';
                     }
-                    // Clear stored data regardless of success
-                    localStorage.removeItem('pendingTopic');
-                    localStorage.removeItem('pendingNumSlides');
-                })
-                .catch(() => {
-                    // Clear stored data on error
-                    localStorage.removeItem('pendingTopic');
-                    localStorage.removeItem('pendingNumSlides');
-                });
-            }
+                } catch (error) {
+                    // Show error message
+                    errorDiv.innerHTML = `
+                        <div class="alert alert-danger">
+                            An error occurred. Please try again.
+                        </div>
+                    `;
+                    errorDiv.style.display = 'block';
+                } finally {
+                    // Reset button state
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Create Presentation';
+                }
+            });
         });
     </script>
 </body>
