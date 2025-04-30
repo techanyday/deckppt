@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import random
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -23,10 +24,64 @@ SCOPES = [
     'openid'
 ]
 
+class SlideLayout:
+    """Predefined slide layouts."""
+    TITLE = 'TITLE'
+    TITLE_AND_BODY = 'TITLE_AND_BODY'
+    SECTION = 'SECTION'
+    TWO_COLUMNS = 'TWO_COLUMNS'
+    TITLE_ONLY = 'TITLE_ONLY'
+    BLANK = 'BLANK'
+
+class SlideTheme:
+    """Predefined color themes."""
+    THEMES = [
+        {
+            'name': 'Ocean Breeze',
+            'colors': {
+                'primary': {'red': 0.0, 'green': 0.4, 'blue': 0.8},
+                'secondary': {'red': 0.8, 'green': 0.9, 'blue': 1.0},
+                'accent': {'red': 0.0, 'green': 0.6, 'blue': 0.4},
+                'background': {'red': 0.95, 'green': 0.98, 'blue': 1.0}
+            }
+        },
+        {
+            'name': 'Lavender Dream',
+            'colors': {
+                'primary': {'red': 0.4, 'green': 0.2, 'blue': 0.8},
+                'secondary': {'red': 0.9, 'green': 0.85, 'blue': 1.0},
+                'accent': {'red': 0.6, 'green': 0.2, 'blue': 0.8},
+                'background': {'red': 0.98, 'green': 0.95, 'blue': 1.0}
+            }
+        },
+        {
+            'name': 'Forest Fresh',
+            'colors': {
+                'primary': {'red': 0.0, 'green': 0.6, 'blue': 0.4},
+                'secondary': {'red': 0.85, 'green': 0.95, 'blue': 0.9},
+                'accent': {'red': 0.2, 'green': 0.8, 'blue': 0.4},
+                'background': {'red': 0.95, 'green': 1.0, 'blue': 0.98}
+            }
+        }
+    ]
+
+    @classmethod
+    def get_random_theme(cls):
+        """Get a random color theme."""
+        return random.choice(cls.THEMES)
+
 class GoogleSlidesGenerator:
     def __init__(self):
         """Initialize the Google Slides generator."""
         self.service = None
+        self.theme = None
+        self.current_layout_index = 0
+        self.layouts = [
+            SlideLayout.TITLE_AND_BODY,
+            SlideLayout.TWO_COLUMNS,
+            SlideLayout.TITLE_AND_BODY,
+            SlideLayout.SECTION
+        ]
         
     def init_service(self, credentials_dict=None):
         """Initialize the Google Slides service with credentials."""
@@ -91,83 +146,124 @@ class GoogleSlidesGenerator:
             logger.error(f"Error getting credentials from code: {str(e)}")
             raise
             
+    def get_next_layout(self):
+        """Get the next layout in rotation."""
+        layout = self.layouts[self.current_layout_index]
+        self.current_layout_index = (self.current_layout_index + 1) % len(self.layouts)
+        return layout
+
     def create_presentation(self, title, topic, num_slides=5):
-        """Create a new presentation with the given title and content."""
+        """Create a new presentation with the specified title and theme."""
         try:
-            if not self.service:
-                raise ValueError("Slides service not initialized. Call init_service first.")
-                
+            # Select a random theme
+            self.theme = SlideTheme.get_random_theme()
+            
             # Create new presentation
             presentation = {
                 'title': title
             }
-            
-            logger.info(f"Creating new presentation: {title}")
             presentation = self.service.presentations().create(body=presentation).execute()
             presentation_id = presentation.get('presentationId')
             
             if not presentation_id:
-                raise ValueError("Failed to get presentation ID from Google Slides API")
+                raise ValueError("Failed to create presentation")
                 
-            logger.info(f"Created presentation with ID: {presentation_id}")
+            # Generate content
+            sections = self._generate_content(topic, num_slides)
             
-            # Generate content using OpenAI
-            logger.info(f"Generating content for topic: {topic}")
-            content_sections = self._generate_content(topic, num_slides)
-            
-            if not content_sections:
-                raise ValueError("Failed to generate content sections")
-                
             # Create title slide
-            logger.info("Creating title slide")
-            title_requests = self._create_title_slide(title)
+            self._create_title_slide(presentation_id, title)
             
             # Create content slides
-            logger.info("Creating content slides")
-            content_requests = self._create_content_slides(content_sections)
+            current_section = None
+            section_count = 0
             
-            # Combine all requests
-            requests = title_requests + content_requests
+            for i, section in enumerate(sections):
+                # Check if we need a section break
+                if current_section != section['title'].split(' - ')[0]:
+                    current_section = section['title'].split(' - ')[0]
+                    section_count += 1
+                    if section_count > 1:
+                        self._create_section_slide(presentation_id, f"Let's Explore {current_section}")
+                
+                # Split points if more than 4
+                points = section['points']
+                if len(points) > 4:
+                    # Create first slide with first 4 points
+                    self._create_content_slide(
+                        presentation_id,
+                        section['title'],
+                        points[:4],
+                        self.get_next_layout()
+                    )
+                    # Create second slide with remaining points
+                    self._create_content_slide(
+                        presentation_id,
+                        f"{section['title']} (Continued)",
+                        points[4:],
+                        self.get_next_layout()
+                    )
+                else:
+                    self._create_content_slide(
+                        presentation_id,
+                        section['title'],
+                        points,
+                        self.get_next_layout()
+                    )
             
-            # Execute the requests
-            logger.info("Executing slide creation requests")
-            body = {
-                'requests': requests
-            }
-            
-            response = self.service.presentations().batchUpdate(
-                presentationId=presentation_id,
-                body=body
-            ).execute()
-            
-            logger.info(f"Successfully updated presentation: {response}")
             return presentation_id
             
         except Exception as e:
             logger.error(f"Error creating presentation: {str(e)}")
-            if isinstance(e, HttpError):
-                logger.error(f"Google API error response: {e.resp.status} - {e.content}")
-            return None
-            
-    def _apply_modern_blue_theme(self, presentation_id):
-        """Apply modern blue theme to the presentation."""
+            raise
+
+    def _create_title_slide(self, presentation_id, title):
+        """Create the title slide with theme colors."""
         requests = [{
-            'updatePageProperties': {
-                'objectId': 'p',
-                'pageProperties': {
-                    'pageBackgroundFill': {
-                        'solidFill': {
-                            'color': {
-                                'rgbColor': {
-                                    'red': 1.0,
-                                    'green': 1.0,
-                                    'blue': 1.0
-                                }
-                            }
-                        }
+            'createSlide': {
+                'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE},
+                'placeholderIdMappings': [
+                    {
+                        'layoutPlaceholder': {'type': 'CENTERED_TITLE'},
+                        'objectId': 'title'
                     }
+                ]
+            }
+        }, {
+            'createShape': {
+                'objectId': 'background',
+                'shapeType': 'RECTANGLE',
+                'elementProperties': {
+                    'pageObjectId': 'p',
+                    'size': {'width': {'magnitude': 720, 'unit': 'PT'},
+                            'height': {'magnitude': 405, 'unit': 'PT'}},
+                    'transform': {'scaleX': 1, 'scaleY': 1,
+                                'translateX': 0, 'translateY': 0, 'unit': 'PT'}
+                }
+            }
+        }, {
+            'updateShapeProperties': {
+                'objectId': 'background',
+                'shapeProperties': {
+                    'solidFill': self.theme['colors']['background']
                 },
-                'fields': 'pageBackgroundFill'
+                'fields': 'solidFill'
+            }
+        }, {
+            'insertText': {
+                'objectId': 'title',
+                'text': title
+            }
+        }, {
+            'updateTextStyle': {
+                'objectId': 'title',
+                'style': {
+                    'foregroundColor': self.theme['colors']['primary'],
+                    'fontFamily': 'Montserrat',
+                    'fontSize': {'magnitude': 40, 'unit': 'PT'},
+                    'bold': True
+                },
+                'fields': 'foregroundColor,fontFamily,fontSize,bold'
             }
         }]
         
@@ -175,67 +271,223 @@ class GoogleSlidesGenerator:
             presentationId=presentation_id,
             body={'requests': requests}
         ).execute()
+
+    def _create_section_slide(self, presentation_id, title):
+        """Create a section break slide."""
+        requests = [{
+            'createSlide': {
+                'slideLayoutReference': {'predefinedLayout': SlideLayout.SECTION},
+                'placeholderIdMappings': [
+                    {
+                        'layoutPlaceholder': {'type': 'TITLE'},
+                        'objectId': 'title'
+                    }
+                ]
+            }
+        }, {
+            'createShape': {
+                'objectId': 'background',
+                'shapeType': 'RECTANGLE',
+                'elementProperties': {
+                    'pageObjectId': 'p',
+                    'size': {'width': {'magnitude': 720, 'unit': 'PT'},
+                            'height': {'magnitude': 405, 'unit': 'PT'}},
+                    'transform': {'scaleX': 1, 'scaleY': 1,
+                                'translateX': 0, 'translateY': 0, 'unit': 'PT'}
+                }
+            }
+        }, {
+            'updateShapeProperties': {
+                'objectId': 'background',
+                'shapeProperties': {
+                    'solidFill': self.theme['colors']['secondary']
+                },
+                'fields': 'solidFill'
+            }
+        }, {
+            'insertText': {
+                'objectId': 'title',
+                'text': title
+            }
+        }, {
+            'updateTextStyle': {
+                'objectId': 'title',
+                'style': {
+                    'foregroundColor': self.theme['colors']['primary'],
+                    'fontFamily': 'Montserrat',
+                    'fontSize': {'magnitude': 36, 'unit': 'PT'},
+                    'bold': True
+                },
+                'fields': 'foregroundColor,fontFamily,fontSize,bold'
+            }
+        }]
         
-    def _create_title_slide(self, title):
-        """Create the title slide with modern design."""
-        requests = [
-            # Add title box with gradient background
+        self.service.presentations().batchUpdate(
+            presentationId=presentation_id,
+            body={'requests': requests}
+        ).execute()
+
+    def _create_content_slide(self, presentation_id, title, points, layout):
+        """Create a content slide with the specified layout."""
+        requests = []
+        
+        # Create slide with layout
+        slide_request = {
+            'createSlide': {
+                'slideLayoutReference': {'predefinedLayout': layout},
+                'placeholderIdMappings': [
+                    {
+                        'layoutPlaceholder': {'type': 'TITLE'},
+                        'objectId': 'title'
+                    }
+                ]
+            }
+        }
+        
+        if layout == SlideLayout.TWO_COLUMNS:
+            # Split points into two columns
+            mid = len(points) // 2
+            left_points = points[:mid]
+            right_points = points[mid:]
+            
+            # Add placeholders for two columns
+            slide_request['createSlide']['placeholderIdMappings'].extend([
+                {
+                    'layoutPlaceholder': {'type': 'BODY'},
+                    'objectId': 'leftColumn'
+                },
+                {
+                    'layoutPlaceholder': {'type': 'BODY_2'},
+                    'objectId': 'rightColumn'
+                }
+            ])
+        else:
+            # Single column layout
+            slide_request['createSlide']['placeholderIdMappings'].append({
+                'layoutPlaceholder': {'type': 'BODY'},
+                'objectId': 'body'
+            })
+        
+        requests.append(slide_request)
+        
+        # Add background
+        requests.extend([
             {
                 'createShape': {
-                    'objectId': 'titleBox',
+                    'objectId': 'background',
                     'shapeType': 'RECTANGLE',
                     'elementProperties': {
                         'pageObjectId': 'p',
-                        'size': {
-                            'width': {'magnitude': 720, 'unit': 'PT'},
-                            'height': {'magnitude': 100, 'unit': 'PT'}
-                        },
-                        'transform': {
-                            'scaleX': 1,
-                            'scaleY': 1,
-                            'translateX': 50,
-                            'translateY': 200,
-                            'unit': 'PT'
-                        }
+                        'size': {'width': {'magnitude': 720, 'unit': 'PT'},
+                                'height': {'magnitude': 405, 'unit': 'PT'}},
+                        'transform': {'scaleX': 1, 'scaleY': 1,
+                                    'translateX': 0, 'translateY': 0, 'unit': 'PT'}
                     }
                 }
             },
-            # Add title text
+            {
+                'updateShapeProperties': {
+                    'objectId': 'background',
+                    'shapeProperties': {
+                        'solidFill': self.theme['colors']['background']
+                    },
+                    'fields': 'solidFill'
+                }
+            }
+        ])
+        
+        # Add title
+        requests.extend([
             {
                 'insertText': {
-                    'objectId': 'titleBox',
+                    'objectId': 'title',
                     'text': title
                 }
             },
-            # Style the title text
             {
                 'updateTextStyle': {
-                    'objectId': 'titleBox',
+                    'objectId': 'title',
                     'style': {
-                        'fontFamily': 'Roboto',
-                        'fontSize': {'magnitude': 40, 'unit': 'PT'},
-                        'foregroundColor': {
-                            'opaqueColor': {
-                                'rgbColor': {
-                                    'red': 0,
-                                    'green': 0.4,
-                                    'blue': 1.0
-                                }
-                            }
-                        }
+                        'foregroundColor': self.theme['colors']['primary'],
+                        'fontFamily': 'Montserrat',
+                        'fontSize': {'magnitude': 24, 'unit': 'PT'},
+                        'bold': True
                     },
-                    'fields': 'fontFamily,fontSize,foregroundColor'
+                    'fields': 'foregroundColor,fontFamily,fontSize,bold'
                 }
             }
-        ]
+        ])
         
-        return requests
+        # Add content based on layout
+        if layout == SlideLayout.TWO_COLUMNS:
+            # Left column
+            requests.extend([
+                {
+                    'insertText': {
+                        'objectId': 'leftColumn',
+                        'text': '\n'.join(f'• {point}' for point in left_points)
+                    }
+                },
+                {
+                    'updateTextStyle': {
+                        'objectId': 'leftColumn',
+                        'style': {
+                            'foregroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
+                            'fontFamily': 'Roboto',
+                            'fontSize': {'magnitude': 18, 'unit': 'PT'}
+                        },
+                        'fields': 'foregroundColor,fontFamily,fontSize'
+                    }
+                }
+            ])
+            
+            # Right column
+            requests.extend([
+                {
+                    'insertText': {
+                        'objectId': 'rightColumn',
+                        'text': '\n'.join(f'• {point}' for point in right_points)
+                    }
+                },
+                {
+                    'updateTextStyle': {
+                        'objectId': 'rightColumn',
+                        'style': {
+                            'foregroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
+                            'fontFamily': 'Roboto',
+                            'fontSize': {'magnitude': 18, 'unit': 'PT'}
+                        },
+                        'fields': 'foregroundColor,fontFamily,fontSize'
+                    }
+                }
+            ])
+        else:
+            # Single column
+            requests.extend([
+                {
+                    'insertText': {
+                        'objectId': 'body',
+                        'text': '\n'.join(f'• {point}' for point in points)
+                    }
+                },
+                {
+                    'updateTextStyle': {
+                        'objectId': 'body',
+                        'style': {
+                            'foregroundColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2},
+                            'fontFamily': 'Roboto',
+                            'fontSize': {'magnitude': 18, 'unit': 'PT'}
+                        },
+                        'fields': 'foregroundColor,fontFamily,fontSize'
+                    }
+                }
+            ])
         
-    def _create_overview_slide(self, presentation_id, topic):
-        """Create an overview slide."""
-        # Implementation similar to title slide but with different layout
-        pass
-        
+        self.service.presentations().batchUpdate(
+            presentationId=presentation_id,
+            body={'requests': requests}
+        ).execute()
+
     def _generate_content(self, topic, num_slides):
         """Generate content for the presentation using OpenAI."""
         try:
@@ -289,217 +541,4 @@ class GoogleSlidesGenerator:
                 
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
-            raise
-            
-    def _create_content_slides(self, content_sections):
-        """Create content slides with insights."""
-        try:
-            # Color schemes for rotation
-            color_schemes = [
-                {
-                    'background': {'red': 0.95, 'green': 0.97, 'blue': 1.0},  # Light blue
-                    'title': {'red': 0.0, 'green': 0.4, 'blue': 0.8},  # Deep blue
-                    'text': {'red': 0.2, 'green': 0.2, 'blue': 0.2}  # Dark gray
-                },
-                {
-                    'background': {'red': 0.96, 'green': 1.0, 'blue': 0.96},  # Light green
-                    'title': {'red': 0.0, 'green': 0.6, 'blue': 0.4},  # Teal
-                    'text': {'red': 0.2, 'green': 0.2, 'blue': 0.2}  # Dark gray
-                },
-                {
-                    'background': {'red': 0.98, 'green': 0.95, 'blue': 1.0},  # Soft lavender
-                    'title': {'red': 0.5, 'green': 0.2, 'blue': 0.8},  # Purple
-                    'text': {'red': 0.2, 'green': 0.2, 'blue': 0.2}  # Dark gray
-                }
-            ]
-            
-            requests = []
-            
-            for i, section in enumerate(content_sections):
-                # Get color scheme for this slide
-                color_scheme = color_schemes[i % len(color_schemes)]
-                
-                # Create a new slide
-                slide = {
-                    'createSlide': {
-                        'objectId': f'slide_{i+1}',
-                        'slideLayoutReference': {
-                            'predefinedLayout': 'BLANK'
-                        }
-                    }
-                }
-                
-                requests.append(slide)
-                
-                slide_id = f'slide_{i+1}'
-                title = section.get('title', '')
-                points = section.get('points', [])
-                
-                # Create requests for slide elements
-                requests.extend([
-                    # Add background shape
-                    {
-                        'createShape': {
-                            'objectId': f'background_{i+1}',
-                            'shapeType': 'RECTANGLE',
-                            'elementProperties': {
-                                'pageObjectId': slide_id,
-                                'size': {
-                                    'width': {'magnitude': 720, 'unit': 'PT'},
-                                    'height': {'magnitude': 405, 'unit': 'PT'}
-                                },
-                                'transform': {
-                                    'scaleX': 1,
-                                    'scaleY': 1,
-                                    'translateX': 0,
-                                    'translateY': 0,
-                                    'unit': 'PT'
-                                }
-                            }
-                        }
-                    },
-                    # Style background
-                    {
-                        'updateShapeProperties': {
-                            'objectId': f'background_{i+1}',
-                            'fields': 'shapeBackgroundFill.solidFill.color',
-                            'shapeProperties': {
-                                'shapeBackgroundFill': {
-                                    'solidFill': {
-                                        'color': {'rgbColor': color_scheme['background']}
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    # Add title box
-                    {
-                        'createShape': {
-                            'objectId': f'title_{i+1}',
-                            'shapeType': 'RECTANGLE',
-                            'elementProperties': {
-                                'pageObjectId': slide_id,
-                                'size': {
-                                    'width': {'magnitude': 650, 'unit': 'PT'},
-                                    'height': {'magnitude': 50, 'unit': 'PT'}
-                                },
-                                'transform': {
-                                    'scaleX': 1,
-                                    'scaleY': 1,
-                                    'translateX': 35,
-                                    'translateY': 20,
-                                    'unit': 'PT'
-                                }
-                            }
-                        }
-                    },
-                    # Style title box
-                    {
-                        'updateShapeProperties': {
-                            'objectId': f'title_{i+1}',
-                            'fields': 'outline.propertyState,shapeBackgroundFill.propertyState',
-                            'shapeProperties': {
-                                'outline': {'propertyState': 'NOT_RENDERED'},
-                                'shapeBackgroundFill': {'propertyState': 'NOT_RENDERED'}
-                            }
-                        }
-                    },
-                    # Add title text
-                    {
-                        'insertText': {
-                            'objectId': f'title_{i+1}',
-                            'text': title
-                        }
-                    },
-                    # Style title
-                    {
-                        'updateTextStyle': {
-                            'objectId': f'title_{i+1}',
-                            'fields': 'fontFamily,fontSize,foregroundColor,bold',
-                            'style': {
-                                'fontFamily': 'Roboto',
-                                'fontSize': {'magnitude': 32, 'unit': 'PT'},
-                                'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['title']}},
-                                'bold': True
-                            }
-                        }
-                    },
-                    # Add content box
-                    {
-                        'createShape': {
-                            'objectId': f'content_{i+1}',
-                            'shapeType': 'RECTANGLE',
-                            'elementProperties': {
-                                'pageObjectId': slide_id,
-                                'size': {
-                                    'width': {'magnitude': 650, 'unit': 'PT'},
-                                    'height': {'magnitude': 280, 'unit': 'PT'}
-                                },
-                                'transform': {
-                                    'scaleX': 1,
-                                    'scaleY': 1,
-                                    'translateX': 35,
-                                    'translateY': 90,
-                                    'unit': 'PT'
-                                }
-                            }
-                        }
-                    },
-                    # Style content box
-                    {
-                        'updateShapeProperties': {
-                            'objectId': f'content_{i+1}',
-                            'fields': 'outline.propertyState,shapeBackgroundFill.propertyState',
-                            'shapeProperties': {
-                                'outline': {'propertyState': 'NOT_RENDERED'},
-                                'shapeBackgroundFill': {'propertyState': 'NOT_RENDERED'}
-                            }
-                        }
-                    }
-                ])
-                
-                # Add bullet points with proper spacing
-                bullet_text = '\n'.join(f'• {point}' for point in points)
-                requests.extend([
-                    # Add bullet points
-                    {
-                        'insertText': {
-                            'objectId': f'content_{i+1}',
-                            'text': bullet_text
-                        }
-                    },
-                    # Style bullet points
-                    {
-                        'updateTextStyle': {
-                            'objectId': f'content_{i+1}',
-                            'fields': 'fontFamily,fontSize,foregroundColor',
-                            'style': {
-                                'fontFamily': 'Roboto',
-                                'fontSize': {'magnitude': 20, 'unit': 'PT'},
-                                'foregroundColor': {'opaqueColor': {'rgbColor': color_scheme['text']}}
-                            }
-                        }
-                    },
-                    # Add paragraph spacing
-                    {
-                        'updateParagraphStyle': {
-                            'objectId': f'content_{i+1}',
-                            'fields': 'spaceAbove,spaceBelow,indentStart,indentFirstLine,alignment,direction',
-                            'style': {
-                                'spaceAbove': {'magnitude': 12, 'unit': 'PT'},
-                                'spaceBelow': {'magnitude': 12, 'unit': 'PT'},
-                                'indentStart': {'magnitude': 20, 'unit': 'PT'},
-                                'indentFirstLine': {'magnitude': -20, 'unit': 'PT'},
-                                'alignment': 'START',
-                                'direction': 'LEFT_TO_RIGHT'
-                            }
-                        }
-                    }
-                ])
-                
-            logger.info(f"Created {len(content_sections)} content slides")
-            return requests
-            
-        except Exception as e:
-            logger.error(f"Error creating content slides: {str(e)}")
             raise
