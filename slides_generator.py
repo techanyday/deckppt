@@ -76,6 +76,7 @@ class GoogleSlidesGenerator:
         self.service = None
         self.theme = None
         self.current_layout_index = 0
+        self.current_slide_index = 0
         self.layouts = [
             SlideLayout.TITLE_AND_BODY,
             SlideLayout.TWO_COLUMNS,
@@ -151,6 +152,11 @@ class GoogleSlidesGenerator:
         layout = self.layouts[self.current_layout_index]
         self.current_layout_index = (self.current_layout_index + 1) % len(self.layouts)
         return layout
+
+    def get_unique_id(self, base_id):
+        """Generate a unique ID for a slide element."""
+        unique_id = f"{base_id}_{self.current_slide_index}"
+        return unique_id
 
     def create_presentation(self, title, topic, num_slides=5):
         """Create a new presentation with the specified title and theme."""
@@ -229,19 +235,23 @@ class GoogleSlidesGenerator:
             'opaqueColor': self.theme['colors']['primary']['solid']['color']
         }
 
+        # Generate unique IDs
+        title_id = self.get_unique_id('title')
+        background_id = self.get_unique_id('background')
+
         requests = [{
             'createSlide': {
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE},
                 'placeholderIdMappings': [
                     {
                         'layoutPlaceholder': {'type': 'CENTERED_TITLE'},
-                        'objectId': 'title'
+                        'objectId': title_id
                     }
                 ]
             }
         }, {
             'createShape': {
-                'objectId': 'background',
+                'objectId': background_id,
                 'shapeType': 'RECTANGLE',
                 'elementProperties': {
                     'pageObjectId': 'p',
@@ -253,7 +263,7 @@ class GoogleSlidesGenerator:
             }
         }, {
             'updateShapeProperties': {
-                'objectId': 'background',
+                'objectId': background_id,
                 'shapeProperties': {
                     'shapeBackgroundFill': background_fill
                 },
@@ -261,12 +271,12 @@ class GoogleSlidesGenerator:
             }
         }, {
             'insertText': {
-                'objectId': 'title',
+                'objectId': title_id,
                 'text': title
             }
         }, {
             'updateTextStyle': {
-                'objectId': 'title',
+                'objectId': title_id,
                 'style': {
                     'foregroundColor': text_color,
                     'fontFamily': 'Montserrat',
@@ -281,6 +291,7 @@ class GoogleSlidesGenerator:
             presentationId=presentation_id,
             body={'requests': requests}
         ).execute()
+        self.current_slide_index += 1
 
     def _create_section_slide(self, presentation_id, title):
         """Create a section break slide."""
@@ -294,19 +305,23 @@ class GoogleSlidesGenerator:
             'opaqueColor': self.theme['colors']['primary']['solid']['color']
         }
 
+        # Generate unique IDs
+        title_id = self.get_unique_id('title')
+        background_id = self.get_unique_id('background')
+
         requests = [{
             'createSlide': {
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.SECTION},
                 'placeholderIdMappings': [
                     {
                         'layoutPlaceholder': {'type': 'TITLE'},
-                        'objectId': 'title'
+                        'objectId': title_id
                     }
                 ]
             }
         }, {
             'createShape': {
-                'objectId': 'background',
+                'objectId': background_id,
                 'shapeType': 'RECTANGLE',
                 'elementProperties': {
                     'pageObjectId': 'p',
@@ -318,7 +333,7 @@ class GoogleSlidesGenerator:
             }
         }, {
             'updateShapeProperties': {
-                'objectId': 'background',
+                'objectId': background_id,
                 'shapeProperties': {
                     'shapeBackgroundFill': background_fill
                 },
@@ -326,12 +341,12 @@ class GoogleSlidesGenerator:
             }
         }, {
             'insertText': {
-                'objectId': 'title',
+                'objectId': title_id,
                 'text': title
             }
         }, {
             'updateTextStyle': {
-                'objectId': 'title',
+                'objectId': title_id,
                 'style': {
                     'foregroundColor': text_color,
                     'fontFamily': 'Montserrat',
@@ -346,6 +361,7 @@ class GoogleSlidesGenerator:
             presentationId=presentation_id,
             body={'requests': requests}
         ).execute()
+        self.current_slide_index += 1
 
     def _create_content_slide(self, presentation_id, title, points, layout):
         """Create a content slide with the specified layout."""
@@ -362,6 +378,13 @@ class GoogleSlidesGenerator:
             'opaqueColor': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}
         }
 
+        # Generate unique IDs
+        title_id = self.get_unique_id('title')
+        background_id = self.get_unique_id('background')
+        left_column_id = self.get_unique_id('leftColumn')
+        right_column_id = self.get_unique_id('rightColumn')
+        body_id = self.get_unique_id('body')
+
         requests = []
         
         # Create slide with layout
@@ -371,7 +394,7 @@ class GoogleSlidesGenerator:
                 'placeholderIdMappings': [
                     {
                         'layoutPlaceholder': {'type': 'TITLE'},
-                        'objectId': 'title'
+                        'objectId': title_id
                     }
                 ]
             }
@@ -387,18 +410,18 @@ class GoogleSlidesGenerator:
             slide_request['createSlide']['placeholderIdMappings'].extend([
                 {
                     'layoutPlaceholder': {'type': 'BODY'},
-                    'objectId': 'leftColumn'
+                    'objectId': left_column_id
                 },
                 {
                     'layoutPlaceholder': {'type': 'BODY_2'},
-                    'objectId': 'rightColumn'
+                    'objectId': right_column_id
                 }
             ])
         else:
             # Single column layout
             slide_request['createSlide']['placeholderIdMappings'].append({
                 'layoutPlaceholder': {'type': 'BODY'},
-                'objectId': 'body'
+                'objectId': body_id
             })
         
         requests.append(slide_request)
@@ -407,7 +430,7 @@ class GoogleSlidesGenerator:
         requests.extend([
             {
                 'createShape': {
-                    'objectId': 'background',
+                    'objectId': background_id,
                     'shapeType': 'RECTANGLE',
                     'elementProperties': {
                         'pageObjectId': 'p',
@@ -420,7 +443,7 @@ class GoogleSlidesGenerator:
             },
             {
                 'updateShapeProperties': {
-                    'objectId': 'background',
+                    'objectId': background_id,
                     'shapeProperties': {
                         'shapeBackgroundFill': background_fill
                     },
@@ -433,13 +456,13 @@ class GoogleSlidesGenerator:
         requests.extend([
             {
                 'insertText': {
-                    'objectId': 'title',
+                    'objectId': title_id,
                     'text': title
                 }
             },
             {
                 'updateTextStyle': {
-                    'objectId': 'title',
+                    'objectId': title_id,
                     'style': {
                         'foregroundColor': text_color,
                         'fontFamily': 'Montserrat',
@@ -457,13 +480,13 @@ class GoogleSlidesGenerator:
             requests.extend([
                 {
                     'insertText': {
-                        'objectId': 'leftColumn',
+                        'objectId': left_column_id,
                         'text': '\n'.join(f'• {point}' for point in left_points)
                     }
                 },
                 {
                     'updateTextStyle': {
-                        'objectId': 'leftColumn',
+                        'objectId': left_column_id,
                         'style': {
                             'foregroundColor': body_color,
                             'fontFamily': 'Roboto',
@@ -478,13 +501,13 @@ class GoogleSlidesGenerator:
             requests.extend([
                 {
                     'insertText': {
-                        'objectId': 'rightColumn',
+                        'objectId': right_column_id,
                         'text': '\n'.join(f'• {point}' for point in right_points)
                     }
                 },
                 {
                     'updateTextStyle': {
-                        'objectId': 'rightColumn',
+                        'objectId': right_column_id,
                         'style': {
                             'foregroundColor': body_color,
                             'fontFamily': 'Roboto',
@@ -499,13 +522,13 @@ class GoogleSlidesGenerator:
             requests.extend([
                 {
                     'insertText': {
-                        'objectId': 'body',
+                        'objectId': body_id,
                         'text': '\n'.join(f'• {point}' for point in points)
                     }
                 },
                 {
                     'updateTextStyle': {
-                        'objectId': 'body',
+                        'objectId': body_id,
                         'style': {
                             'foregroundColor': body_color,
                             'fontFamily': 'Roboto',
@@ -520,6 +543,7 @@ class GoogleSlidesGenerator:
             presentationId=presentation_id,
             body={'requests': requests}
         ).execute()
+        self.current_slide_index += 1
 
     def _generate_content(self, topic, num_slides):
         """Generate content for the presentation using OpenAI."""
