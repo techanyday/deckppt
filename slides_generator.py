@@ -359,280 +359,177 @@ class GoogleSlidesGenerator:
         ).execute()
         self.current_slide_index += 1
 
-    def _create_content_slide(self, presentation_id, title, points, layout):
-        """Create a content slide with the specified layout."""
-        # Convert theme colors to API format
-        background_fill = {
-            'solidFill': {
-                'color': self.theme['colors']['background']['solid']['color']
-            }
-        }
-        text_color = {
-            'opaqueColor': self.theme['colors']['primary']['solid']['color']
-        }
-        body_color = {
-            'opaqueColor': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}
-        }
-
-        # Generate unique IDs
-        title_id = self.get_unique_id('title')
-        background_id = self.get_unique_id('background')
-        body_id = self.get_unique_id('body')
-        page_id = self.get_unique_id('page')
-
-        requests = []
-        
-        # Create slide with layout
-        slide_request = {
-            'createSlide': {
-                'objectId': page_id,
-                'slideLayoutReference': {'predefinedLayout': layout},
-                'placeholderIdMappings': [
-                    {
-                        'layoutPlaceholder': {'type': PlaceholderType.TITLE},
-                        'objectId': title_id
-                    },
-                    {
-                        'layoutPlaceholder': {'type': PlaceholderType.BODY},
-                        'objectId': body_id
-                    }
-                ]
-            }
-        }
-        
-        requests.append(slide_request)
-        
-        # Add background
-        requests.extend([
-            {
-                'createShape': {
-                    'objectId': background_id,
-                    'shapeType': 'RECTANGLE',
-                    'elementProperties': {
-                        'pageObjectId': page_id,
-                        'size': {'width': {'magnitude': 720, 'unit': 'PT'},
-                                'height': {'magnitude': 405, 'unit': 'PT'}},
-                        'transform': {'scaleX': 1, 'scaleY': 1,
-                                    'translateX': 0, 'translateY': 0, 'unit': 'PT'}
-                    }
-                }
-            },
-            {
-                'updateShapeProperties': {
-                    'objectId': background_id,
-                    'shapeProperties': {
-                        'shapeBackgroundFill': background_fill
-                    },
-                    'fields': 'shapeBackgroundFill'
+    def _create_content_slide(self, presentation_id, title, points, layout=None):
+        """Create a content slide with title and bullet points."""
+        try:
+            if not layout:
+                layout = self.get_next_layout()
+            
+            # Create slide
+            slide = {
+                'createSlide': {
+                    'objectId': f'slide_{self.current_slide_index}',
+                    'slideLayoutReference': {'predefinedLayout': layout},
+                    'placeholderIdMappings': [
+                        {
+                            'layoutPlaceholder': {'type': PlaceholderType.TITLE},
+                            'objectId': f'title_{self.current_slide_index}'
+                        },
+                        {
+                            'layoutPlaceholder': {'type': PlaceholderType.BODY},
+                            'objectId': f'body_{self.current_slide_index}'
+                        }
+                    ]
                 }
             }
-        ])
-        
-        # Add title
-        requests.extend([
-            {
+            
+            # Insert title
+            title_request = {
                 'insertText': {
-                    'objectId': title_id,
+                    'objectId': f'title_{self.current_slide_index}',
                     'text': title
                 }
-            },
-            {
-                'updateTextStyle': {
-                    'objectId': title_id,
-                    'style': {
-                        'foregroundColor': text_color,
-                        'fontFamily': 'Montserrat',
-                        'fontSize': {'magnitude': 24, 'unit': 'PT'},
-                        'bold': True
-                    },
-                    'fields': 'foregroundColor,fontFamily,fontSize,bold'
+            }
+            
+            # Format bullet points
+            bullet_text = ''
+            for point in points:
+                # Clean and format the point
+                point = point.strip()
+                if not point.endswith(('.', '!', '?')):
+                    point += '.'
+                bullet_text += point + '\n'
+            
+            # Insert bullet points
+            body_request = {
+                'insertText': {
+                    'objectId': f'body_{self.current_slide_index}',
+                    'text': bullet_text
                 }
             }
-        ])
-        
-        if layout == SlideLayout.TITLE_AND_TWO_COLUMNS:
-            # Split points into two columns
-            mid = len(points) // 2
-            left_points = points[:mid]
-            right_points = points[mid:]
             
-            # Create left column shape
-            left_column_id = self.get_unique_id('leftColumn')
-            requests.extend([
-                {
-                    'createShape': {
-                        'objectId': left_column_id,
-                        'shapeType': 'TEXT_BOX',
-                        'elementProperties': {
-                            'pageObjectId': page_id,
-                            'size': {'width': {'magnitude': 320, 'unit': 'PT'},
-                                    'height': {'magnitude': 300, 'unit': 'PT'}},
-                            'transform': {'scaleX': 1, 'scaleY': 1,
-                                        'translateX': 40, 'translateY': 100,
-                                        'unit': 'PT'}
-                        }
-                    }
-                },
-                {
-                    'insertText': {
-                        'objectId': left_column_id,
-                        'text': '\n'.join(f'• {point}' for point in left_points)
-                    }
-                },
+            # Apply text styling
+            style_requests = [
+                # Title style
                 {
                     'updateTextStyle': {
-                        'objectId': left_column_id,
+                        'objectId': f'title_{self.current_slide_index}',
                         'style': {
-                            'foregroundColor': body_color,
-                            'fontFamily': 'Roboto',
-                            'fontSize': {'magnitude': 18, 'unit': 'PT'}
+                            'fontSize': {'magnitude': 24, 'unit': 'PT'},
+                            'foregroundColor': self.theme['colors']['primary']['solid']['color'],
+                            'bold': True
                         },
-                        'fields': 'foregroundColor,fontFamily,fontSize'
+                        'fields': 'fontSize,foregroundColor,bold'
+                    }
+                },
+                # Body style
+                {
+                    'updateTextStyle': {
+                        'objectId': f'body_{self.current_slide_index}',
+                        'style': {
+                            'fontSize': {'magnitude': 18, 'unit': 'PT'},
+                            'foregroundColor': self.theme['colors']['primary']['solid']['color'],
+                            'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
+                            'spaceBefore': {'magnitude': 10, 'unit': 'PT'},
+                            'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
+                        },
+                        'fields': 'fontSize,foregroundColor,spaceAbove,spaceBefore,bulletPreset'
                     }
                 }
-            ])
+            ]
             
-            # Create right column shape
-            right_column_id = self.get_unique_id('rightColumn')
-            requests.extend([
-                {
-                    'createShape': {
-                        'objectId': right_column_id,
-                        'shapeType': 'TEXT_BOX',
-                        'elementProperties': {
-                            'pageObjectId': page_id,
-                            'size': {'width': {'magnitude': 320, 'unit': 'PT'},
-                                    'height': {'magnitude': 300, 'unit': 'PT'}},
-                            'transform': {'scaleX': 1, 'scaleY': 1,
-                                        'translateX': 380, 'translateY': 100,
-                                        'unit': 'PT'}
-                        }
-                    }
-                },
-                {
-                    'insertText': {
-                        'objectId': right_column_id,
-                        'text': '\n'.join(f'• {point}' for point in right_points)
-                    }
-                },
-                {
-                    'updateTextStyle': {
-                        'objectId': right_column_id,
-                        'style': {
-                            'foregroundColor': body_color,
-                            'fontFamily': 'Roboto',
-                            'fontSize': {'magnitude': 18, 'unit': 'PT'}
-                        },
-                        'fields': 'foregroundColor,fontFamily,fontSize'
-                    }
-                }
-            ])
-        else:
-            # Add content to single column
-            requests.extend([
-                {
-                    'insertText': {
-                        'objectId': body_id,
-                        'text': '\n'.join(f'• {point}' for point in points)
-                    }
-                },
-                {
-                    'updateTextStyle': {
-                        'objectId': body_id,
-                        'style': {
-                            'foregroundColor': body_color,
-                            'fontFamily': 'Roboto',
-                            'fontSize': {'magnitude': 18, 'unit': 'PT'}
-                        },
-                        'fields': 'foregroundColor,fontFamily,fontSize'
-                    }
-                }
-            ])
-        
-        self.service.presentations().batchUpdate(
-            presentationId=presentation_id,
-            body={'requests': requests}
-        ).execute()
-        self.current_slide_index += 1
+            # Execute requests
+            requests = [slide, title_request, body_request] + style_requests
+            self.service.presentations().batchUpdate(
+                presentationId=presentation_id,
+                body={'requests': requests}
+            ).execute()
+            
+            self.current_slide_index += 1
+            
+        except Exception as e:
+            logger.error(f"Error creating content slide: {str(e)}")
+            raise
 
     def _generate_content(self, topic, num_slides):
         """Generate content for the presentation using OpenAI."""
         try:
             logger.info(f"Generating content for {num_slides} slides")
             
-            prompt = f"""Create an outline for a {num_slides}-slide presentation about {topic}.
-            Return only a JSON object with this structure:
+            # Create a detailed prompt
+            prompt = f"""Create a detailed presentation outline on "{topic}" with {num_slides} sections.
+            For each section, provide:
+            1. A clear, engaging title (2-5 words)
+            2. 4-6 detailed bullet points that:
+               - Are complete thoughts (10-15 words each)
+               - Include specific examples, data, or insights
+               - Flow logically from one point to the next
+               - Avoid vague statements
+            
+            Format as JSON:
             {{
                 "sections": [
                     {{
                         "title": "Section Title",
-                        "points": ["Point 1", "Point 2", "Point 3", "Point 4", "Point 5"]
-                    }}
+                        "points": [
+                            "Detailed point 1 with specific example",
+                            "Detailed point 2 with data or insight",
+                            ...
+                        ]
+                    }},
+                    ...
                 ]
             }}
-            Each section must have exactly 5 points.
-            The total number of sections must be exactly {num_slides}.
-            Keep points concise and impactful.
-            Do not include any markdown formatting, code blocks, or extra text.
-            """
             
-            # Make API call using the client
-            response = openai_client.chat.completions.create(
+            Make sure:
+            - First section introduces the topic
+            - Middle sections develop key ideas
+            - Final section concludes with takeaways
+            - Each point is substantive and informative
+            - No placeholder or generic content"""
+
+            # Get completion from OpenAI
+            response = openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful presentation content creator. Always return valid JSON without any markdown formatting or extra text."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=2000
             )
-            
-            # Get response content and clean it
+
+            # Parse response
             content = response.choices[0].message.content.strip()
-            
-            # Remove any markdown formatting
-            if content.startswith('```'):
-                content = content[content.find('{'):content.rfind('}')+1]
-            
-            logger.info(f"Got OpenAI response: {content[:100]}...")
             
             try:
                 # Parse JSON response
                 data = json.loads(content)
-                sections = data.get('sections', [])
                 
-                # Validate sections
-                if not sections:
-                    raise ValueError("No sections found in OpenAI response")
-                    
-                if len(sections) != num_slides:
-                    raise ValueError(f"Got {len(sections)} sections, expected {num_slides}")
-                    
+                # Validate response format
+                if not isinstance(data, dict) or 'sections' not in data:
+                    raise ValueError("Invalid response format")
+                
+                sections = data['sections']
+                if not sections or len(sections) < num_slides:
+                    raise ValueError(f"Not enough sections generated (got {len(sections)}, need {num_slides})")
+                
                 # Validate each section
                 for section in sections:
                     if not isinstance(section, dict):
                         raise ValueError("Invalid section format")
-                        
-                    if 'title' not in section or 'points' not in section:
-                        raise ValueError("Section missing title or points")
-                        
-                    if not isinstance(section['points'], list):
-                        raise ValueError("Points must be a list")
-                        
-                    if len(section['points']) != 5:
-                        raise ValueError(f"Section '{section['title']}' has {len(section['points'])} points, expected 5")
-                        
-                    # Clean up points
-                    section['points'] = [
-                        point.strip().strip('•').strip('-').strip()
-                        for point in section['points']
-                    ]
                     
-                return sections
+                    if 'title' not in section or not section['title'].strip():
+                        raise ValueError("Missing or empty section title")
+                    
+                    if 'points' not in section or not section['points']:
+                        raise ValueError("Missing or empty section points")
+                    
+                    if len(section['points']) < 3:
+                        raise ValueError(f"Not enough points in section '{section['title']}'")
                 
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse OpenAI response: {str(e)}")
-                raise ValueError("Invalid JSON response from OpenAI")
+                return sections[:num_slides]
+                
+            except json.JSONDecodeError:
+                raise ValueError("Failed to parse OpenAI response as JSON")
                 
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
-            raise
+            raise ValueError("Failed to generate presentation content")
