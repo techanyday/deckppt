@@ -504,6 +504,8 @@ class GoogleSlidesGenerator:
                     }}
                 ]
             }}
+            Make sure each section has exactly 5 points and the total number of sections matches {num_slides}.
+            Keep points concise and impactful.
             """
             
             # Make API call using the client
@@ -516,22 +518,41 @@ class GoogleSlidesGenerator:
                 temperature=0.7
             )
             
-            # Parse response
-            content = response.choices[0].message.content
+            # Get response content
+            content = response.choices[0].message.content.strip()
+            logger.info(f"Got OpenAI response: {content[:100]}...")
+            
             try:
+                # Parse JSON response
                 data = json.loads(content)
                 sections = data.get('sections', [])
                 
+                # Validate sections
                 if not sections:
                     raise ValueError("No sections found in OpenAI response")
                     
                 if len(sections) != num_slides:
                     raise ValueError(f"Got {len(sections)} sections, expected {num_slides}")
                     
-                # Validate each section has exactly 5 points
+                # Validate each section
                 for section in sections:
-                    if len(section.get('points', [])) != 5:
-                        raise ValueError("Each section must have exactly 5 points")
+                    if not isinstance(section, dict):
+                        raise ValueError("Invalid section format")
+                        
+                    if 'title' not in section or 'points' not in section:
+                        raise ValueError("Section missing title or points")
+                        
+                    if not isinstance(section['points'], list):
+                        raise ValueError("Points must be a list")
+                        
+                    if len(section['points']) != 5:
+                        raise ValueError(f"Section '{section['title']}' has {len(section['points'])} points, expected 5")
+                        
+                    # Clean up points
+                    section['points'] = [
+                        point.strip().strip('•').strip('-').strip()
+                        for point in section['points']
+                    ]
                     
                 return sections
                 
