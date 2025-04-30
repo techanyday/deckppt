@@ -367,8 +367,6 @@ class GoogleSlidesGenerator:
         # Generate unique IDs
         title_id = self.get_unique_id('title')
         background_id = self.get_unique_id('background')
-        left_column_id = self.get_unique_id('leftColumn')
-        right_column_id = self.get_unique_id('rightColumn')
         body_id = self.get_unique_id('body')
         page_id = self.get_unique_id('page')
 
@@ -383,34 +381,14 @@ class GoogleSlidesGenerator:
                     {
                         'layoutPlaceholder': {'type': PlaceholderType.TITLE},
                         'objectId': title_id
+                    },
+                    {
+                        'layoutPlaceholder': {'type': PlaceholderType.BODY},
+                        'objectId': body_id
                     }
                 ]
             }
         }
-        
-        if layout == SlideLayout.TITLE_AND_TWO_COLUMNS:
-            # Split points into two columns
-            mid = len(points) // 2
-            left_points = points[:mid]
-            right_points = points[mid:]
-            
-            # Add placeholders for two columns
-            slide_request['createSlide']['placeholderIdMappings'].extend([
-                {
-                    'layoutPlaceholder': {'type': PlaceholderType.BODY},
-                    'objectId': left_column_id
-                },
-                {
-                    'layoutPlaceholder': {'type': PlaceholderType.BODY},
-                    'objectId': right_column_id
-                }
-            ])
-        else:
-            # Single column layout
-            slide_request['createSlide']['placeholderIdMappings'].append({
-                'layoutPlaceholder': {'type': PlaceholderType.BODY},
-                'objectId': body_id
-            })
         
         requests.append(slide_request)
         
@@ -462,10 +440,29 @@ class GoogleSlidesGenerator:
             }
         ])
         
-        # Add content based on layout
         if layout == SlideLayout.TITLE_AND_TWO_COLUMNS:
-            # Left column
+            # Split points into two columns
+            mid = len(points) // 2
+            left_points = points[:mid]
+            right_points = points[mid:]
+            
+            # Create left column shape
+            left_column_id = self.get_unique_id('leftColumn')
             requests.extend([
+                {
+                    'createShape': {
+                        'objectId': left_column_id,
+                        'shapeType': 'TEXT_BOX',
+                        'elementProperties': {
+                            'pageObjectId': page_id,
+                            'size': {'width': {'magnitude': 320, 'unit': 'PT'},
+                                    'height': {'magnitude': 300, 'unit': 'PT'}},
+                            'transform': {'scaleX': 1, 'scaleY': 1,
+                                        'translateX': 40, 'translateY': 100,
+                                        'unit': 'PT'}
+                        }
+                    }
+                },
                 {
                     'insertText': {
                         'objectId': left_column_id,
@@ -485,8 +482,23 @@ class GoogleSlidesGenerator:
                 }
             ])
             
-            # Right column
+            # Create right column shape
+            right_column_id = self.get_unique_id('rightColumn')
             requests.extend([
+                {
+                    'createShape': {
+                        'objectId': right_column_id,
+                        'shapeType': 'TEXT_BOX',
+                        'elementProperties': {
+                            'pageObjectId': page_id,
+                            'size': {'width': {'magnitude': 320, 'unit': 'PT'},
+                                    'height': {'magnitude': 300, 'unit': 'PT'}},
+                            'transform': {'scaleX': 1, 'scaleY': 1,
+                                        'translateX': 380, 'translateY': 100,
+                                        'unit': 'PT'}
+                        }
+                    }
+                },
                 {
                     'insertText': {
                         'objectId': right_column_id,
@@ -506,7 +518,7 @@ class GoogleSlidesGenerator:
                 }
             ])
         else:
-            # Single column
+            # Add content to single column
             requests.extend([
                 {
                     'insertText': {
