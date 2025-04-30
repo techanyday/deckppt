@@ -333,13 +333,30 @@ class GoogleSlidesGenerator:
                 }
             })
             
+            # Style title
+            requests.append({
+                'updateTextStyle': {
+                    'objectId': title_id,
+                    'style': {
+                        'foregroundColor': {
+                            'opaqueColor': {
+                                'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}
+                            }
+                        },
+                        'fontSize': {'magnitude': 24, 'unit': 'PT'},
+                        'bold': True
+                    },
+                    'fields': 'foregroundColor,fontSize,bold'
+                }
+            })
+            
             # Format bullet points
             bullet_text = ''
             for point in points:
                 point = point.strip()
                 if not point.endswith(('.', '!', '?')):
                     point += '.'
-                bullet_text += f"• {point}\n"
+                bullet_text += f"{point}\n"
             
             # Insert bullet points
             requests.append({
@@ -349,43 +366,28 @@ class GoogleSlidesGenerator:
                 }
             })
             
-            # Style title
-            requests.append({
-                'updateTextStyle': {
-                    'objectId': title_id,
-                    'style': {
-                        'fontSize': {'magnitude': 24, 'unit': 'PT'},
-                        'foregroundColor': self.theme['colors']['primary']['solid']['color'],
-                        'bold': True
-                    },
-                    'fields': 'fontSize,foregroundColor,bold'
-                }
-            })
-            
-            # Style body
+            # Style bullet points
             requests.append({
                 'updateTextStyle': {
                     'objectId': body_id,
                     'style': {
-                        'fontSize': {'magnitude': 18, 'unit': 'PT'},
-                        'foregroundColor': self.theme['colors']['text']['solid']['color'],
-                        'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
-                        'spaceBefore': {'magnitude': 10, 'unit': 'PT'}
+                        'foregroundColor': {
+                            'opaqueColor': {
+                                'rgbColor': {'red': 0.3, 'green': 0.3, 'blue': 0.3}
+                            }
+                        },
+                        'fontSize': {'magnitude': 18, 'unit': 'PT'}
                     },
-                    'fields': 'fontSize,foregroundColor,spaceAbove,spaceBefore'
+                    'fields': 'foregroundColor,fontSize'
                 }
             })
             
-            # Update paragraph style for bullets
+            # Add bullets
             requests.append({
-                'updateParagraphStyle': {
+                'createParagraphBullets': {
                     'objectId': body_id,
-                    'style': {
-                        'spaceAbove': {'magnitude': 10, 'unit': 'PT'},
-                        'spaceBefore': {'magnitude': 10, 'unit': 'PT'},
-                        'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
-                    },
-                    'fields': 'spaceAbove,spaceBefore,bulletPreset'
+                    'textRange': {'type': 'ALL'},
+                    'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
                 }
             })
             
