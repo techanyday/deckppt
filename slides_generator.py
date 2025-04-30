@@ -28,10 +28,18 @@ class SlideLayout:
     """Predefined slide layouts."""
     TITLE = 'TITLE'
     TITLE_AND_BODY = 'TITLE_AND_BODY'
-    SECTION = 'SECTION'
-    TWO_COLUMNS = 'TWO_COLUMNS'
+    TITLE_AND_TWO_COLUMNS = 'TITLE_AND_TWO_COLUMNS'
+    SECTION = 'SECTION_HEADER'
     TITLE_ONLY = 'TITLE_ONLY'
     BLANK = 'BLANK'
+
+class PlaceholderType:
+    """Predefined placeholder types."""
+    TITLE = 'TITLE'
+    BODY = 'BODY'
+    CENTERED_TITLE = 'CENTERED_TITLE'
+    SUBTITLE = 'SUBTITLE'
+    SLIDE_NUMBER = 'SLIDE_NUMBER'
 
 class SlideTheme:
     """Predefined color themes."""
@@ -79,7 +87,7 @@ class GoogleSlidesGenerator:
         self.current_slide_index = 0
         self.layouts = [
             SlideLayout.TITLE_AND_BODY,
-            SlideLayout.TWO_COLUMNS,
+            SlideLayout.TITLE_AND_TWO_COLUMNS,
             SlideLayout.TITLE_AND_BODY,
             SlideLayout.SECTION
         ]
@@ -220,7 +228,7 @@ class GoogleSlidesGenerator:
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE},
                 'placeholderIdMappings': [
                     {
-                        'layoutPlaceholder': {'type': 'CENTERED_TITLE'},
+                        'layoutPlaceholder': {'type': PlaceholderType.CENTERED_TITLE},
                         'objectId': title_id
                     }
                 ]
@@ -292,7 +300,7 @@ class GoogleSlidesGenerator:
                 'slideLayoutReference': {'predefinedLayout': SlideLayout.SECTION},
                 'placeholderIdMappings': [
                     {
-                        'layoutPlaceholder': {'type': 'TITLE'},
+                        'layoutPlaceholder': {'type': PlaceholderType.TITLE},
                         'objectId': title_id
                     }
                 ]
@@ -373,14 +381,14 @@ class GoogleSlidesGenerator:
                 'slideLayoutReference': {'predefinedLayout': layout},
                 'placeholderIdMappings': [
                     {
-                        'layoutPlaceholder': {'type': 'TITLE'},
+                        'layoutPlaceholder': {'type': PlaceholderType.TITLE},
                         'objectId': title_id
                     }
                 ]
             }
         }
         
-        if layout == SlideLayout.TWO_COLUMNS:
+        if layout == SlideLayout.TITLE_AND_TWO_COLUMNS:
             # Split points into two columns
             mid = len(points) // 2
             left_points = points[:mid]
@@ -389,18 +397,18 @@ class GoogleSlidesGenerator:
             # Add placeholders for two columns
             slide_request['createSlide']['placeholderIdMappings'].extend([
                 {
-                    'layoutPlaceholder': {'type': 'BODY'},
+                    'layoutPlaceholder': {'type': PlaceholderType.BODY},
                     'objectId': left_column_id
                 },
                 {
-                    'layoutPlaceholder': {'type': 'BODY_2'},
+                    'layoutPlaceholder': {'type': PlaceholderType.BODY},
                     'objectId': right_column_id
                 }
             ])
         else:
             # Single column layout
             slide_request['createSlide']['placeholderIdMappings'].append({
-                'layoutPlaceholder': {'type': 'BODY'},
+                'layoutPlaceholder': {'type': PlaceholderType.BODY},
                 'objectId': body_id
             })
         
@@ -455,7 +463,7 @@ class GoogleSlidesGenerator:
         ])
         
         # Add content based on layout
-        if layout == SlideLayout.TWO_COLUMNS:
+        if layout == SlideLayout.TITLE_AND_TWO_COLUMNS:
             # Left column
             requests.extend([
                 {
