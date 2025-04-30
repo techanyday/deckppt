@@ -8,14 +8,13 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from flask import url_for, session
 import openai
-from openai import OpenAI
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configure OpenAI
-openai_client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+openai_client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = [
@@ -443,15 +442,16 @@ class GoogleSlidesGenerator:
             - Each point is substantive and informative
             - No placeholder or generic content"""
 
-            # Get completion from OpenAI
-            response = openai.ChatCompletion.create(
+            # Get completion from OpenAI using new client interface
+            client = openai.OpenAI()
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.7,
                 max_tokens=2000
             )
 
-            # Parse response
+            # Parse response using new response format
             content = response.choices[0].message.content.strip()
             
             try:
