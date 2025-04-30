@@ -39,28 +39,28 @@ class SlideTheme:
         {
             'name': 'Ocean Breeze',
             'colors': {
-                'primary': {'solidFill': {'color': {'red': 0.0, 'green': 0.4, 'blue': 0.8}}},
-                'secondary': {'solidFill': {'color': {'red': 0.8, 'green': 0.9, 'blue': 1.0}}},
-                'accent': {'solidFill': {'color': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}},
-                'background': {'solidFill': {'color': {'red': 0.95, 'green': 0.98, 'blue': 1.0}}}
+                'primary': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.4, 'blue': 0.8}}}},
+                'secondary': {'solid': {'color': {'rgbColor': {'red': 0.8, 'green': 0.9, 'blue': 1.0}}}},
+                'accent': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}}},
+                'background': {'solid': {'color': {'rgbColor': {'red': 0.95, 'green': 0.98, 'blue': 1.0}}}}
             }
         },
         {
             'name': 'Lavender Dream',
             'colors': {
-                'primary': {'solidFill': {'color': {'red': 0.4, 'green': 0.2, 'blue': 0.8}}},
-                'secondary': {'solidFill': {'color': {'red': 0.9, 'green': 0.85, 'blue': 1.0}}},
-                'accent': {'solidFill': {'color': {'red': 0.6, 'green': 0.2, 'blue': 0.8}}},
-                'background': {'solidFill': {'color': {'red': 0.98, 'green': 0.95, 'blue': 1.0}}}
+                'primary': {'solid': {'color': {'rgbColor': {'red': 0.4, 'green': 0.2, 'blue': 0.8}}}},
+                'secondary': {'solid': {'color': {'rgbColor': {'red': 0.9, 'green': 0.85, 'blue': 1.0}}}},
+                'accent': {'solid': {'color': {'rgbColor': {'red': 0.6, 'green': 0.2, 'blue': 0.8}}}},
+                'background': {'solid': {'color': {'rgbColor': {'red': 0.98, 'green': 0.95, 'blue': 1.0}}}}
             }
         },
         {
             'name': 'Forest Fresh',
             'colors': {
-                'primary': {'solidFill': {'color': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}},
-                'secondary': {'solidFill': {'color': {'red': 0.85, 'green': 0.95, 'blue': 0.9}}},
-                'accent': {'solidFill': {'color': {'red': 0.2, 'green': 0.8, 'blue': 0.4}}},
-                'background': {'solidFill': {'color': {'red': 0.95, 'green': 1.0, 'blue': 0.98}}}
+                'primary': {'solid': {'color': {'rgbColor': {'red': 0.0, 'green': 0.6, 'blue': 0.4}}}},
+                'secondary': {'solid': {'color': {'rgbColor': {'red': 0.85, 'green': 0.95, 'blue': 0.9}}}},
+                'accent': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.8, 'blue': 0.4}}}},
+                'background': {'solid': {'color': {'rgbColor': {'red': 0.95, 'green': 1.0, 'blue': 0.98}}}}
             }
         }
     ]
@@ -432,7 +432,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'leftColumn',
                         'style': {
-                            'foregroundColor': {'solidFill': {'color': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}},
+                            'foregroundColor': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}},
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
@@ -453,7 +453,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'rightColumn',
                         'style': {
-                            'foregroundColor': {'solidFill': {'color': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}},
+                            'foregroundColor': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}},
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
@@ -474,7 +474,7 @@ class GoogleSlidesGenerator:
                     'updateTextStyle': {
                         'objectId': 'body',
                         'style': {
-                            'foregroundColor': {'solidFill': {'color': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}},
+                            'foregroundColor': {'solid': {'color': {'rgbColor': {'red': 0.2, 'green': 0.2, 'blue': 0.2}}}},
                             'fontFamily': 'Roboto',
                             'fontSize': {'magnitude': 18, 'unit': 'PT'}
                         },
