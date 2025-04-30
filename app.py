@@ -57,6 +57,14 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 with app.app_context():
     db.create_all()
 
+# OAuth scopes
+GOOGLE_SCOPES = [
+    'openid',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/presentations'
+]
+
 # OAuth 2.0 configuration
 GOOGLE_CLIENT_CONFIG = {
     'web': {
@@ -88,7 +96,7 @@ def create_flow():
     
     return Flow.from_client_config(
         GOOGLE_CLIENT_CONFIG,
-        scopes=['https://www.googleapis.com/auth/presentations'],
+        scopes=GOOGLE_SCOPES,
         redirect_uri=redirect_uri
     )
 
@@ -127,13 +135,19 @@ def index():
 
 @app.route('/login')
 def login():
-    if 'user' in session:
-        return redirect(url_for('index'))
-    return render_template('login.html')
+    """Show login page."""
+    next_url = request.args.get('next', url_for('index'))
+    return render_template('login.html', next_url=next_url)
 
 @app.route('/login/google')
 def google_login():
-    return redirect(auth.get_auth_url())
+    """Start the Google OAuth flow for login."""
+    # Store the next URL in session
+    next_url = request.args.get('next', url_for('index'))
+    session['next_url'] = next_url
+    
+    # Redirect to the common OAuth flow
+    return redirect(url_for('google_auth'))
 
 @app.route('/login/google/authorized')
 def google_auth_callback():
@@ -173,7 +187,9 @@ def google_auth_callback():
 
 @app.route('/logout')
 def logout():
-    session.pop('user', None)
+    """Log out the user."""
+    # Clear all session data
+    session.clear()
     return redirect(url_for('login'))
 
 @app.route('/auth/google')
@@ -198,7 +214,8 @@ def google_auth():
         # Store flow in session
         session['flow'] = {
             'state': state,
-            'redirect_uri': flow.redirect_uri
+            'redirect_uri': flow.redirect_uri,
+            'scopes': GOOGLE_SCOPES
         }
         
         return redirect(auth_url)
@@ -235,6 +252,39 @@ def oauth2callback():
         # Store credentials in session
         session['google_token'] = credentials_to_dict(credentials)
         
+        # Get user info
+        try:
+            userinfo = flow.oauth2session.get('https://www.googleapis.com/oauth2/v2/userinfo').json()
+            
+            # Store user info in session
+            session['user'] = {
+                'id': userinfo.get('id'),
+                'email': userinfo.get('email'),
+                'name': userinfo.get('name'),
+                'picture': userinfo.get('picture')
+            }
+            
+            # Create or update user in database
+            user = User.query.filter_by(email=userinfo['email']).first()
+            if not user:
+                user = User(
+                    email=userinfo['email'],
+                    name=userinfo['name'],
+                    google_id=userinfo['id'],
+                    picture=userinfo.get('picture')
+                )
+                db.session.add(user)
+            else:
+                user.name = userinfo['name']
+                user.picture = userinfo.get('picture')
+                user.last_login = datetime.utcnow()
+            
+            db.session.commit()
+            
+        except Exception as e:
+            app.logger.error(f"Error getting user info: {str(e)}")
+            return 'Failed to get user info', 500
+        
         # Check if we have pending presentation to generate
         if 'pending_topic' in session and 'pending_num_slides' in session:
             topic = session.pop('pending_topic')
@@ -254,7 +304,9 @@ def oauth2callback():
                 presentation_url = f'https://docs.google.com/presentation/d/{presentation_id}'
                 return redirect(presentation_url)
         
-        return redirect(url_for('index'))
+        # Redirect to the stored next URL or index
+        next_url = session.pop('next_url', url_for('index'))
+        return redirect(next_url)
         
     except Exception as e:
         app.logger.error(f"OAuth callback error: {str(e)}")
