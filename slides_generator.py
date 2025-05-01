@@ -145,21 +145,11 @@ class GoogleSlidesGenerator:
         """Create an attractive title slide."""
         slide_id = f"title_{uuid.uuid4().hex[:8]}"
         requests = [
-            # Create title slide
+            # Create slide
             {
                 'createSlide': {
                     'objectId': slide_id,
-                    'slideLayoutReference': {'predefinedLayout': 'TITLE'},
-                    'placeholderIdMappings': [
-                        {
-                            'layoutPlaceholder': {'type': 'TITLE', 'index': 0},
-                            'objectId': f"{slide_id}_title"
-                        },
-                        {
-                            'layoutPlaceholder': {'type': 'SUBTITLE', 'index': 1},
-                            'objectId': f"{slide_id}_subtitle"
-                        }
-                    ]
+                    'slideLayoutReference': {'predefinedLayout': SlideLayout.TITLE}
                 }
             },
             # Set slide background
@@ -176,6 +166,27 @@ class GoogleSlidesGenerator:
                         }
                     },
                     'fields': 'pageBackgroundFill'
+                }
+            },
+            # Create title shape
+            {
+                'createShape': {
+                    'objectId': f"{slide_id}_title",
+                    'shapeType': 'TEXT_BOX',
+                    'elementProperties': {
+                        'pageObjectId': slide_id,
+                        'size': {
+                            'width': {'magnitude': 600, 'unit': 'PT'},
+                            'height': {'magnitude': 100, 'unit': 'PT'}
+                        },
+                        'transform': {
+                            'scaleX': 1,
+                            'scaleY': 1,
+                            'translateX': 50,
+                            'translateY': 100,
+                            'unit': 'PT'
+                        }
+                    }
                 }
             },
             # Insert title text
@@ -199,6 +210,27 @@ class GoogleSlidesGenerator:
                     },
                     'textRange': {'type': 'ALL'},
                     'fields': 'foregroundColor,fontSize,fontFamily,bold'
+                }
+            },
+            # Create subtitle shape
+            {
+                'createShape': {
+                    'objectId': f"{slide_id}_subtitle",
+                    'shapeType': 'TEXT_BOX',
+                    'elementProperties': {
+                        'pageObjectId': slide_id,
+                        'size': {
+                            'width': {'magnitude': 600, 'unit': 'PT'},
+                            'height': {'magnitude': 50, 'unit': 'PT'}
+                        },
+                        'transform': {
+                            'scaleX': 1,
+                            'scaleY': 1,
+                            'translateX': 50,
+                            'translateY': 200,
+                            'unit': 'PT'
+                        }
+                    }
                 }
             },
             # Insert subtitle text
@@ -251,21 +283,11 @@ class GoogleSlidesGenerator:
         layout = self._get_slide_layout(section_index, total_sections, title)
         
         requests = [
-            # Create slide with dynamic layout
+            # Create slide
             {
                 'createSlide': {
                     'objectId': slide_id,
-                    'slideLayoutReference': {'predefinedLayout': layout},
-                    'placeholderIdMappings': [
-                        {
-                            'layoutPlaceholder': {'type': 'TITLE', 'index': 0},
-                            'objectId': f"{slide_id}_title"
-                        },
-                        {
-                            'layoutPlaceholder': {'type': 'BODY', 'index': 1},
-                            'objectId': f"{slide_id}_body"
-                        }
-                    ]
+                    'slideLayoutReference': {'predefinedLayout': layout}
                 }
             },
             # Set slide background
@@ -282,6 +304,27 @@ class GoogleSlidesGenerator:
                         }
                     },
                     'fields': 'pageBackgroundFill'
+                }
+            },
+            # Create title shape
+            {
+                'createShape': {
+                    'objectId': f"{slide_id}_title",
+                    'shapeType': 'TEXT_BOX',
+                    'elementProperties': {
+                        'pageObjectId': slide_id,
+                        'size': {
+                            'width': {'magnitude': 600, 'unit': 'PT'},
+                            'height': {'magnitude': 50, 'unit': 'PT'}
+                        },
+                        'transform': {
+                            'scaleX': 1,
+                            'scaleY': 1,
+                            'translateX': 50,
+                            'translateY': 30,
+                            'unit': 'PT'
+                        }
+                    }
                 }
             },
             # Insert title text
@@ -305,6 +348,27 @@ class GoogleSlidesGenerator:
                     },
                     'textRange': {'type': 'ALL'},
                     'fields': 'foregroundColor,fontSize,fontFamily,bold'
+                }
+            },
+            # Create body shape
+            {
+                'createShape': {
+                    'objectId': f"{slide_id}_body",
+                    'shapeType': 'TEXT_BOX',
+                    'elementProperties': {
+                        'pageObjectId': slide_id,
+                        'size': {
+                            'width': {'magnitude': 600, 'unit': 'PT'},
+                            'height': {'magnitude': 300, 'unit': 'PT'}
+                        },
+                        'transform': {
+                            'scaleX': 1,
+                            'scaleY': 1,
+                            'translateX': 50,
+                            'translateY': 100,
+                            'unit': 'PT'
+                        }
+                    }
                 }
             },
             # Insert body text
