@@ -135,25 +135,22 @@
         <div class="form-container">
             <form action="{{ url_for('generate_presentation') }}" method="POST" id="presentation-form">
                 <div class="mb-3">
-                    <label for="topic" class="form-label">Enter a title or a prompt</label>
-                    <input type="text" class="form-control" id="topic" name="topic" required
-                           placeholder="The Impact of AI on economy">
+                    <label for="title" class="form-label">Enter a title or a prompt</label>
+                    <input type="text" class="form-control" id="title" name="title" required
+                           placeholder="e.g., The Future of Artificial Intelligence in Education">
                     <div class="form-text">Be specific and descriptive for better results</div>
                 </div>
 
                 <div class="mb-3">
-                    <label for="theme" class="form-label">Theme</label>
-                    <select class="form-select" id="theme" name="theme">
-                        <option value="professional">Professional (Clean & Business-like)</option>
-                        <option value="modern">Modern (Sleek & Minimalist)</option>
-                        <option value="creative">Creative (Bold & Dynamic)</option>
-                    </select>
+                    <label for="topic" class="form-label">Theme</label>
+                    <input type="text" class="form-control" id="topic" name="topic" required
+                           value="Professional (Clean & Business-like)">
                     <div class="form-text">Choose a theme that matches your presentation style</div>
                 </div>
 
                 <div class="mb-3">
                     <label for="num_slides" class="form-label">Number of Slides</label>
-                    <input type="number" class="form-control" id="num_slides" name="num_slides" 
+                    <input type="number" class="form-control" id="num_slides" name="num_slides" required
                            value="5" min="1" max="{% if user.current_plan.value == 'free' %}5{% else %}10{% endif %}">
                     <div class="form-text">Recommended: 5-10 slides for optimal content</div>
                 </div>
