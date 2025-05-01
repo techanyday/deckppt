@@ -24,7 +24,9 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', os.urandom(24))
 
 # Configure SQLAlchemy
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///presentations.db')
+if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Only add pooling options for PostgreSQL
@@ -43,10 +45,7 @@ if os.environ.get('PAYSTACK_SECRET_KEY'):
     paystack = PaystackService()
 else:
     paystack = None  # Skip Paystack for local development
-if os.environ.get('GOOGLE_SLIDES_CREDENTIALS'):
-    slides = GoogleSlidesGenerator()  # Will use env vars
-else:
-    slides = GoogleSlidesGenerator('slides_credentials.json')  # Will use local file
+slides = GoogleSlidesGenerator()  # Will use env vars
 
 # Configure upload and download directories
 UPLOAD_FOLDER = os.path.join('static', 'downloads')

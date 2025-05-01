@@ -54,20 +54,36 @@ class GoogleSlidesGenerator:
             'text': {'r': 0.13, 'g': 0.13, 'b': 0.13}  # Dark Gray
         }
 
-    def _create_slides_service(self, credentials_path):
+    def _create_slides_service(self, credentials_path=None):
+        """Initialize the Google Slides service with credentials."""
         try:
-            if not credentials_path:
-                raise ValueError("No credentials provided")
-                
-            # Create credentials from file
-            credentials = Credentials.from_service_account_file(
-                credentials_path, scopes=SCOPES
-            )
+            # Try to get credentials from environment variable first
+            creds_json = os.getenv('GOOGLE_CREDENTIALS_JSON')
+            if creds_json:
+                try:
+                    creds_dict = json.loads(creds_json)
+                    credentials = Credentials.from_service_account_info(
+                        creds_dict,
+                        scopes=SCOPES
+                    )
+                except Exception as e:
+                    logger.error(f"Error parsing credentials JSON from env: {str(e)}")
+                    raise ValueError("Invalid credentials JSON in environment")
             
+            # Fall back to file if provided
+            elif credentials_path:
+                credentials = Credentials.from_service_account_file(
+                    credentials_path,
+                    scopes=SCOPES
+                )
+            else:
+                # For development, try default credentials
+                credentials = Credentials.from_authorized_user_file(
+                    'token.json', SCOPES)
+                
             # Build the service
             service = build('slides', 'v1', credentials=credentials)
             logger.info("Successfully initialized Slides service")
-            
             return service
             
         except Exception as e:
