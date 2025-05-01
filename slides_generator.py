@@ -3,6 +3,7 @@ import json
 import logging
 import random
 import uuid
+from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
@@ -16,13 +17,8 @@ logger = logging.getLogger(__name__)
 # Configure OpenAI
 openai_client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
-# If modifying these scopes, delete the file token.json.
-SCOPES = [
-    'https://www.googleapis.com/auth/presentations',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'openid'
-]
+# Google Slides API scope
+SCOPES = ['https://www.googleapis.com/auth/presentations']
 
 class SlideLayout:
     """Predefined slide layouts."""
@@ -62,7 +58,7 @@ class GoogleSlidesGenerator:
             if creds_json:
                 try:
                     creds_dict = json.loads(creds_json)
-                    credentials = Credentials.from_service_account_info(
+                    credentials = service_account.Credentials.from_service_account_info(
                         creds_dict,
                         scopes=SCOPES
                     )
@@ -73,7 +69,7 @@ class GoogleSlidesGenerator:
             
             # Fall back to file if provided
             elif credentials_path and os.path.exists(credentials_path):
-                credentials = Credentials.from_service_account_file(
+                credentials = service_account.Credentials.from_service_account_file(
                     credentials_path,
                     scopes=SCOPES
                 )
