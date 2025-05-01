@@ -43,11 +43,11 @@ class GoogleSlidesGenerator:
         self.service = self._create_slides_service(credentials_path)
         # Modern color palette
         self.theme = {
-            'primary': {'r': 0.27, 'g': 0.36, 'b': 0.87},  # Royal Blue
-            'secondary': {'r': 0.95, 'g': 0.49, 'b': 0.33},  # Coral
-            'accent': {'r': 0.33, 'g': 0.78, 'b': 0.69},  # Teal
-            'background': {'r': 0.98, 'g': 0.98, 'b': 0.98},  # Light Gray
-            'text': {'r': 0.13, 'g': 0.13, 'b': 0.13}  # Dark Gray
+            'primary': {'red': 0.27, 'green': 0.36, 'blue': 0.87},  # Royal Blue
+            'secondary': {'red': 0.95, 'green': 0.49, 'blue': 0.33},  # Coral
+            'accent': {'red': 0.33, 'green': 0.78, 'blue': 0.69},  # Teal
+            'background': {'red': 0.98, 'green': 0.98, 'blue': 0.98},  # Light Gray
+            'text': {'red': 0.13, 'green': 0.13, 'blue': 0.13}  # Dark Gray
         }
 
     def _create_slides_service(self, credentials_path=None):
@@ -178,7 +178,7 @@ class GoogleSlidesGenerator:
                     'fields': 'pageBackgroundFill'
                 }
             },
-            # Insert title
+            # Insert title text
             {
                 'insertText': {
                     'objectId': f"{slide_id}_title",
@@ -193,15 +193,15 @@ class GoogleSlidesGenerator:
                         'foregroundColor': {
                             'opaqueColor': {'rgbColor': self.theme['primary']}
                         },
-                        'fontSize': {'magnitude': 40, 'unit': 'PT'},
-                        'bold': True,
-                        'fontFamily': 'Google Sans'
+                        'fontSize': {'magnitude': 36, 'unit': 'PT'},
+                        'fontFamily': 'Google Sans',
+                        'bold': True
                     },
                     'textRange': {'type': 'ALL'},
-                    'fields': 'foregroundColor,fontSize,bold,fontFamily'
+                    'fields': 'foregroundColor,fontSize,fontFamily,bold'
                 }
             },
-            # Insert subtitle
+            # Insert subtitle text
             {
                 'insertText': {
                     'objectId': f"{slide_id}_subtitle",
@@ -262,13 +262,13 @@ class GoogleSlidesGenerator:
                             'objectId': f"{slide_id}_title"
                         },
                         {
-                            'layoutPlaceholder': {'type': 'BODY', 'index': 0},
+                            'layoutPlaceholder': {'type': 'BODY', 'index': 1},
                             'objectId': f"{slide_id}_body"
                         }
                     ]
                 }
             },
-            # Set slide background with subtle gradient
+            # Set slide background
             {
                 'updatePageProperties': {
                     'objectId': slide_id,
@@ -277,24 +277,21 @@ class GoogleSlidesGenerator:
                             'solidFill': {
                                 'color': {
                                     'rgbColor': self.theme['background']
-                                },
-                                'alpha': 0.95
+                                }
                             }
                         }
                     },
                     'fields': 'pageBackgroundFill'
                 }
-            }
-        ]
-
-        # Add title
-        requests.extend([
+            },
+            # Insert title text
             {
                 'insertText': {
                     'objectId': f"{slide_id}_title",
                     'text': title
                 }
             },
+            # Style title
             {
                 'updateTextStyle': {
                     'objectId': f"{slide_id}_title",
@@ -303,31 +300,21 @@ class GoogleSlidesGenerator:
                             'opaqueColor': {'rgbColor': self.theme['primary']}
                         },
                         'fontSize': {'magnitude': 28, 'unit': 'PT'},
-                        'bold': True,
-                        'fontFamily': 'Google Sans'
+                        'fontFamily': 'Google Sans',
+                        'bold': True
                     },
                     'textRange': {'type': 'ALL'},
-                    'fields': 'foregroundColor,fontSize,bold,fontFamily'
+                    'fields': 'foregroundColor,fontSize,fontFamily,bold'
                 }
-            }
-        ])
-
-        # Format bullet points
-        bullet_text = ''
-        for point in points:
-            point = point.strip()
-            if not point.endswith(('.', '!', '?')):
-                point += '.'
-            bullet_text += f"{point}\n"
-
-        # Add content
-        requests.extend([
+            },
+            # Insert body text
             {
                 'insertText': {
                     'objectId': f"{slide_id}_body",
-                    'text': bullet_text
+                    'text': '\n'.join(f"• {point}" for point in points)
                 }
             },
+            # Style body text
             {
                 'updateTextStyle': {
                     'objectId': f"{slide_id}_body",
@@ -349,7 +336,7 @@ class GoogleSlidesGenerator:
                     'bulletPreset': 'BULLET_DISC_CIRCLE_SQUARE'
                 }
             }
-        ])
+        ]
 
         return requests
 
