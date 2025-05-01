@@ -497,12 +497,13 @@ class GoogleSlidesGenerator:
             presentation_id = presentation.get('presentationId')
 
             # Generate content
+            logger.info(f"Generating content for topic: {topic}")
             sections = self._generate_content(topic, num_slides)
             if not sections:
                 raise ValueError("No content generated")
 
             # Start with requests for title slide
-            requests = self._create_title_slide(presentation_id, title)
+            requests = self._create_title_slide(presentation_id, title, f"Topic: {topic}")
 
             # Add content slides
             for i, section in enumerate(sections):
@@ -526,4 +527,4 @@ class GoogleSlidesGenerator:
 
         except Exception as e:
             logger.error(f"Error creating presentation: {str(e)}")
-            raise ValueError("Failed to create presentation")
+            raise
