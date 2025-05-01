@@ -312,46 +312,48 @@ def oauth2callback():
         return 'Authentication failed', 500
 
 @app.route('/generate', methods=['POST'])
+@login_required
 def generate_presentation():
     """Generate a presentation based on user input."""
     try:
-        # Get form data
-        title = request.form.get('title', 'Untitled Presentation')
-        topic = request.form.get('topic', '')
+        title = request.form.get('title', '').strip()
+        topic = request.form.get('topic', '').strip()
         num_slides = int(request.form.get('num_slides', 5))
         
-        # Validate input
-        if not topic:
-            return jsonify({'error': 'Please provide a topic'}), 400
-        
-        if num_slides < 1 or num_slides > 10:
-            return jsonify({'error': 'Number of slides must be between 1 and 10'}), 400
-        
-        # Get credentials from session
-        if 'google_token' not in session:
-            return jsonify({'error': 'Please log in first'}), 401
-        
-        # Create slides generator
-        generator = GoogleSlidesGenerator()
-        generator.init_service(session['google_token'])
-        
-        # Generate presentation
-        result = generator.create_presentation(title, topic, num_slides)
-        
-        # Return success response
-        return jsonify({
-            'success': True,
-            'message': 'Presentation created successfully!',
-            'presentation': {
-                'id': result['id'],
-                'url': result['url'],
-                'title': result['title']
-            }
-        })
-        
+        if not title or not topic:
+            return jsonify({'error': 'Title and topic are required'}), 400
+
+        # Create presentation
+        try:
+            presentation_id = slides.create_presentation(title, topic, num_slides)
+            if not presentation_id:
+                raise ValueError("Failed to create presentation")
+                
+            # Save to database
+            presentation = Presentation(
+                id=presentation_id,
+                title=title,
+                topic=topic,
+                user_id=session['user']['id'],
+                created_at=datetime.utcnow()
+            )
+            db.session.add(presentation)
+            db.session.commit()
+            
+            presentation_url = f"https://docs.google.com/presentation/d/{presentation_id}"
+            return jsonify({
+                'success': True,
+                'presentation_url': presentation_url,
+                'presentation_id': presentation_id
+            })
+            
+        except Exception as e:
+            logger.error(f"Google API error: {str(e)}")
+            return jsonify({'error': 'Failed to create presentation. Please try again.'}), 500
+            
     except Exception as e:
-        logger.error(f"Google API error: {str(e)}")
-        return jsonify({'error': 'Failed to create presentation. Please try again.'}), 500
+        logger.error(f"Error in generate_presentation: {str(e)}")
+        return jsonify({'error': 'An unexpected error occurred'}), 500
 
 @app.route('/download/<filename>')
 @login_required
