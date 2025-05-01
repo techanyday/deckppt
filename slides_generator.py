@@ -66,20 +66,31 @@ class GoogleSlidesGenerator:
                         creds_dict,
                         scopes=SCOPES
                     )
+                    logger.info("Using credentials from environment variable")
                 except Exception as e:
                     logger.error(f"Error parsing credentials JSON from env: {str(e)}")
                     raise ValueError("Invalid credentials JSON in environment")
             
             # Fall back to file if provided
-            elif credentials_path:
+            elif credentials_path and os.path.exists(credentials_path):
                 credentials = Credentials.from_service_account_file(
                     credentials_path,
                     scopes=SCOPES
                 )
-            else:
-                # For development, try default credentials
+                logger.info(f"Using credentials from file: {credentials_path}")
+            
+            # Try default credentials as last resort
+            elif os.path.exists('token.json'):
                 credentials = Credentials.from_authorized_user_file(
                     'token.json', SCOPES)
+                logger.info("Using default credentials from token.json")
+            
+            else:
+                logger.error("No valid credentials found")
+                raise ValueError(
+                    "No valid credentials found. Please set GOOGLE_CREDENTIALS_JSON environment variable "
+                    "or provide a valid credentials file."
+                )
                 
             # Build the service
             service = build('slides', 'v1', credentials=credentials)
